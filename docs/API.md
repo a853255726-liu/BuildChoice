@@ -1,4 +1,4 @@
-# 决策审计接口
+# BuildChoice · MCP 与审计接口
 
 V3 关键决策引导见 [使用说明](DECISION_GUIDANCE.md) 与 [decision.v3 Schema](contracts/decision-v3.schema.json)。以下 audit.v1 接口签名不变。
 
