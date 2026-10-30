@@ -14,10 +14,18 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--persistent', action='store_true')
     args = parser.parse_args()
-    sys.path.insert(0, str(args.runtime_root.resolve(strict=True)))
-    from clarification_gate.desktop.contracts import build_request
-    from clarification_gate.desktop.common import read_config
-    from clarification_gate.desktop.engine import GateEngine
+    runtime_root = args.runtime_root.resolve(strict=True)
+    sys.path.insert(0, str(runtime_root))
+    # A frozen pre-rename runtime must keep its own code and manifest intact.
+    # Choose by the actual package directory, not by catching dependency errors.
+    package = 'buildchoice' if (runtime_root / 'buildchoice').is_dir() else 'clarification_gate'
+    if not (runtime_root / package).is_dir():
+        raise ValueError('Model runtime package is missing')
+    build_request = importlib.import_module(package + '.desktop.contracts').build_request
+    read_config = importlib.import_module(package + '.desktop.common').read_config
+    engine_module = importlib.import_module(package + '.desktop.engine')
+    engine_class = getattr(engine_module, 'BuildChoiceEngine' if package == 'buildchoice' else 'GateEngine')
+    config_section = 'buildchoice' if package == 'buildchoice' else 'gate'
     backend = None
     engine = None
 
@@ -25,14 +33,14 @@ def main():
         nonlocal backend, engine
         started = time.monotonic()
         config = read_config(args.config)
-        if config['gate']['active_backend'] not in config.get('backends', {}):
+        if config[config_section]['active_backend'] not in config.get('backends', {}):
             return {'status':'NOT_READY','reason':'BACKEND_NOT_CONFIGURED'}
         if engine is None:
-            spec = config['backends'][config['gate']['active_backend']]
+            spec = config['backends'][config[config_section]['active_backend']]
             module, name = spec['factory'].split(':', 1)
             factory = getattr(importlib.import_module(module), name)
             backend = factory(spec['manifest'], spec['manifest_sha256'], spec['device'])
-            engine = GateEngine(backend)
+            engine = engine_class(backend)
         request = build_request(given['task'], given['names'], given['evidence'],
             json.dumps(given['resources'], ensure_ascii=False) if given['resources'] else '',
             given['resources'][0]['path'] if given['resources'] else None, 'decision-v3-bridge')

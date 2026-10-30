@@ -13,6 +13,7 @@ binding.json
 *.pem
 
 # Runtime state and generated artifacts
+.buildchoice_audit/
 .gate_audit/
 runs/
 models/

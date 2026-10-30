@@ -38,10 +38,10 @@ B. 核对后保存（推荐）
 需要 Python 3.11+ 和支持本地插件的 Codex 环境。
 
 ```bash
-git clone https://github.com/a853255726-liu/change-note.git
-cd change-note
+git clone https://github.com/a853255726-liu/change-note.git BuildChoice
+cd BuildChoice
 
-python plugins/clarification-gate-controls/setup.py \
+python plugins/buildchoice/setup.py \
   --workspace /absolute/path/to/your-project \
   --runtime-root . \
   --install
@@ -50,7 +50,7 @@ python plugins/clarification-gate-controls/setup.py \
 在 Windows PowerShell 中可使用单行命令：
 
 ```powershell
-python plugins/clarification-gate-controls/setup.py --workspace "C:\\path\\to\\your-project" --runtime-root . --install
+python plugins/buildchoice/setup.py --workspace "C:\\path\\to\\your-project" --runtime-root . --install
 ```
 
 安装器会准备本地 Python 环境。Codex 的 Hook 需要按宿主提示进行信任确认，安装器不会代为修改审批设置。
@@ -58,14 +58,14 @@ python plugins/clarification-gate-controls/setup.py --workspace "C:\\path\\to\\y
 安装后默认使用轻量的 Prompt-first 澄清策略。要开启对话决策卡，在仓库目录执行：
 
 ```bash
-python scripts/gate_decisions.py pilot
+python scripts/buildchoice_decisions.py pilot
 ```
 
 查看设置或关闭决策卡：
 
 ```bash
-python scripts/gate_decisions.py settings
-python scripts/gate_decisions.py off
+python scripts/buildchoice_decisions.py settings
+python scripts/buildchoice_decisions.py off
 ```
 
 决策卡不依赖额外的分类模型。模型校验默认关闭。
@@ -74,12 +74,12 @@ python scripts/gate_decisions.py off
 
 插件通过一个 Skill 引导 Codex 查阅相关项目资料并整理候选选择。MCP 工具负责检查候选和已有证据，决定是先查文件、现在询问、稍后处理，还是直接继续。需要询问时，一次只展示一张卡。
 
-确认记录保存在当前项目的 `.gate_audit/ledger.sqlite3`。记录与当前会话、选项及版本关联；用户要求解释或给出自由回答时，不会被直接当作已经确认。决策发生变更时保留旧版本，便于检查后续实现是否需要调整。
+确认记录保存在当前项目的 `.buildchoice_audit/ledger.sqlite3`。记录与当前会话、选项及版本关联；用户要求解释或给出自由回答时，不会被直接当作已经确认。决策发生变更时保留旧版本，便于检查后续实现是否需要调整。
 
 插件还保留了独立的决策证据审计工具，可以读取项目文件、关联引用并导出记录。它也可以单独使用：
 
 ```bash
-python scripts/gate_audit.py --workspace /absolute/path/to/your-project serve
+python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project serve
 ```
 
 本地记录不会由插件自动上传。对话决策卡不替代 Codex 自身的文件、网络或命令执行审批。
@@ -87,6 +87,7 @@ python scripts/gate_audit.py --workspace /absolute/path/to/your-project serve
 ## 文档
 
 - [决策卡使用说明](docs/DECISION_GUIDANCE.md)
+- [名称与升级说明](docs/UPGRADING.md)
 - [架构](docs/ARCHITECTURE.md)
 - [MCP 与数据接口](docs/API.md)
 - [本地模型接入](docs/MODEL_BACKEND.md)

@@ -21,7 +21,7 @@ NLI 不判断产品决策权或用户授权。旧模式与 audit.v1 路径保留
                             ↓
                     复核记录与报告
 
-可选：MCP → 本地 HTTP → GateEngine → PredictorBackend → NLI
+可选：MCP → 本地 HTTP → BuildChoiceEngine → PredictorBackend → NLI
 ```
 
 ## 模块边界
@@ -30,7 +30,7 @@ NLI 不判断产品决策权或用户授权。旧模式与 audit.v1 路径保留
 - `auto_call.py` / `native_settings.py`：持久化运行模式，默认关闭分类器推断入口。
 - `audit.py`：来源快照、决定、引用、发现、复核及报告；所有入口复用同一核心。
 - `audit_web.py` / `audit_web/`：本机单用户工作台，标准库 HTTP 与静态前端。
-- `codex_gate_mcp.py`：Agent 的按需审计入口及可选分类器桥接。
+- `buildchoice_mcp.py`：Agent 的按需审计入口及可选分类器桥接。
 - `engine.py` / `contracts.py`：版本化请求、revision、证据哈希和响应形状。
 - `required_call.py`：可选强制模式中，将真实调用回执绑定到当前会话和轮次。
 - `backends/` / `predictor/`：可选模型接口与字段级推断。
@@ -59,8 +59,10 @@ JSON pointer 对结构化值进行类型严格的字面比较。多个所引值�
 
 默认任务路径仅注入原则，不自动提交模型或审计请求。审计由使用者或 Agent 显式发起。
 
-工作台与 MCP 使用目标工作区的 `.gate_audit`。分类器 worker 的 token 和调用状态另存于运行时 `runs/desktop_gate`。配置和资源绑定由插件初始化器管理，插件不自动修改宿主 Hook 信任。
+工作台与 MCP 使用目标工作区的 `.buildchoice_audit`。分类器 worker 的 token 和调用状态另存于运行时 `runs/buildchoice`。配置和资源绑定由插件初始化器管理，插件不自动修改宿主 Hook 信任。
 
 ## 名称与兼容性
 
-BuildChoice 是对外使用的项目名称。现有 Python 包 `clarification_gate`、插件安装 ID `clarification-gate-controls`、MCP 服务键 `clarification_gate` 和本地数据目录保持不变，以免旧安装与工作区记录失效。
+BuildChoice 是项目名称；Python 包、插件安装 ID 和 MCP 服务键统一为 `buildchoice`，工具使用 `buildchoice_` 前缀。新安装数据位于 `~/.buildchoice`，项目账本位于 `.buildchoice_audit`。
+
+0.5.0 包含接口名称变更。旧安装、账本和冻结模型运行时的处理方式见 [名称与升级说明](UPGRADING.md)。

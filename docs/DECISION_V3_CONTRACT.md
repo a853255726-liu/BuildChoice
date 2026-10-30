@@ -19,7 +19,7 @@
 
 ## 输入与确认边界
 
-`gate_screen_candidates` 接受完整请求对象。候选数量不迁就模型的 2/3 批次限制。来源仅引用真实账本 source_id；路径当前快照、引用定位和跨任务关系由服务端核对。
+`buildchoice_screen_candidates` 接受完整请求对象。候选数量不迁就模型的 2/3 批次限制。来源仅引用真实账本 source_id；路径当前快照、引用定位和跨任务关系由服务端核对。
 
 真实 UserPromptSubmit 的会话、轮次与消息哈希产生短期随机句柄；MCP 不能靠自报 session_id 获得绑定。首次绑定要求 task_text 与 Hook 观察的任务哈希一致，句柄只可由一个 MCP 会话认领。失效句柄保持未核验，不能伪装已确认。
 

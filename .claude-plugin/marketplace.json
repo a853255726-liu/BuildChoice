@@ -1,14 +1,14 @@
 {
-  "name": "clarification-gate-local",
+  "name": "buildchoice-local",
   "interface": {
     "displayName": "BuildChoice"
   },
   "plugins": [
     {
-      "name": "clarification-gate-controls",
+      "name": "buildchoice",
       "source": {
         "source": "local",
-        "path": "./plugins/clarification-gate-controls"
+        "path": "./plugins/buildchoice"
       },
       "policy": {
         "installation": "AVAILABLE",

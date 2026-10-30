@@ -5,18 +5,18 @@ V3 是独立试验功能，默认关闭。旧 Prompt-first、四种调用模式�
 ## 开关
 
 ```bash
-python scripts/gate_decisions.py settings
-python scripts/gate_decisions.py pilot
-python scripts/gate_decisions.py model-on
-python scripts/gate_decisions.py model-off
-python scripts/gate_decisions.py off
+python scripts/buildchoice_decisions.py settings
+python scripts/buildchoice_decisions.py pilot
+python scripts/buildchoice_decisions.py model-on
+python scripts/buildchoice_decisions.py model-off
+python scripts/buildchoice_decisions.py off
 ```
 
 也可使用原生设置的“V3 关键决策引导”和“V3 NLI 第二意见”。两个开关与旧模式解耦，关闭 V3 不改变旧模式。V3 不会为了取得分类器回执擅自开启旧 required 模式。
 
 ## 对话流程
 
-1. 受支持的 UserPromptSubmit Hook 提供本轮短期 `cg-v3-ctx-...` 句柄。
+1. 受支持的 UserPromptSubmit Hook 提供本轮短期 `buildchoice-v3-ctx-...` 句柄。
 2. 主 Agent 使用 `decision-discovery` Skill，读取直接相关资料，再提交候选；零候选直接继续。
 3. INSPECT 先读资料；DEFER 留到相关依赖；ASK_NOW 每次激活并展示一张卡。
 4. 用户明确回复 A/B 或卡号加“选 A”。同会话、未过期、当前版本的一张待答卡，才由 Hook 记录观察到的选择。
@@ -37,7 +37,7 @@ python scripts/gate_decisions.py off
   "model_runtime": {
     "python": "/absolute/path/to/runtime/bin/python",
     "root": "/absolute/path/to/frozen-runtime",
-    "config": "/absolute/path/to/frozen-runtime/configs/codex_desktop_gate.toml"
+    "config": "/absolute/path/to/frozen-runtime/configs/buildchoice.toml"
   }
 }
 ```
@@ -49,7 +49,7 @@ python scripts/gate_decisions.py off
 ## 迁移与回退
 
 ```bash
-python scripts/gate_decisions.py --workspace /path/to/project migrate
+python scripts/buildchoice_decisions.py --workspace /path/to/project migrate
 ```
 
 首次增加独立 V3 表前会保存 SQLite 备份，不改变 audit.v1 决定或 reviews 的含义。关闭 V3 即可停用，无需回滚。
@@ -57,7 +57,7 @@ python scripts/gate_decisions.py --workspace /path/to/project migrate
 如果确实要移除 V3 表，先关闭 pilot、停止相关会话，再显式运行：
 
 ```bash
-python scripts/gate_decisions.py --workspace /path/to/project rollback
+python scripts/buildchoice_decisions.py --workspace /path/to/project rollback
 ```
 
 回退先完整备份当前数据库，再只移除 V3 表；迁移之后新写入的 audit.v1 记录仍保留。备份包含 V3 历史，请按自己的数据保留规则管理。

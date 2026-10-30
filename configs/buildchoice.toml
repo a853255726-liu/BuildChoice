@@ -1,0 +1,14 @@
+config_version = 1
+
+[buildchoice]
+mode = "advisory"
+active_backend = "mdeberta_v10"
+policy_version = "field-policy-v1"
+
+[service]
+bind = "127.0.0.1"
+port = 8769
+token_file = "runs/buildchoice/local.token"
+log_directory = "runs/buildchoice"
+startup_timeout_seconds = 90
+request_timeout_seconds = 60
