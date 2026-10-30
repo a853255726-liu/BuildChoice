@@ -229,7 +229,7 @@ FINDING_LABELS = {'NO_EVIDENCE': '未绑定证据', 'SOURCE_CHANGED': '证据文
 
 
 def markdown(report):
-    lines = ['# ' + report['title'], '', '> Clarification Gate V2 · 按需决策审计', '',
+    lines = ['# ' + report['title'], '', '> BuildChoice · 按需决策审计', '',
              '任务：' + report['task'], '', '来源类型：' + report['provenance'], '',
              '登记决定 {} · 待复核 {} · 字面匹配 {} · 已记录复核 {}'.format(*[report['summary'][k] for k in ('decisions', 'attention', 'linked', 'reviewed')]), '',
              '字面匹配表示已绑定实际读取的结构化值；业务适用性由复核者判断。', '']
