@@ -70,6 +70,15 @@ python scripts/buildchoice_decisions.py off
 
 BuildChoice 不包含小判别模型、模型 worker 或模型依赖。候选由当前 Agent 提取，服务端通过项目证据与确定性规则分流。
 
+## 安装自检
+
+```powershell
+python scripts/buildchoice_doctor.py
+python scripts/buildchoice_doctor.py --host --json
+```
+
+默认检查本地绑定、目标项目、Python 依赖、运行时入口和独立 MCP 启动；`--host` 额外通过只读接口检查插件启用与 Hook 信任声明。没有取得的状态显示“未验证”，不会自动安装、改配置或信任 Hook。独立 MCP 启动不证明宿主已加载插件，信任定义也不证明实际聊天回调已经执行。
+
 ## 工作方式
 
 V3 开启时，工作区内的用户消息会取得短期 Hook 句柄；是否正在开发由 Codex 结合本轮消息与对话上下文判断。短句和承接请求不会因为正则未命中被排除，普通咨询仍直接回答。
@@ -80,7 +89,9 @@ Agent 在同一次候选提取中附上简短的覆盖依据，说明相关维�
 
 确认记录保存在当前项目的 `.buildchoice_audit/ledger.sqlite3`。记录与当前会话、选项及版本关联；用户要求解释或给出自由回答时，不会被直接当作已经确认。决策发生变更时保留旧版本，便于检查后续实现是否需要调整。
 
-插件还保留了独立的决策证据审计工具，可以读取项目文件、关联引用并导出记录。它也可以单独使用：
+完成实现时，Agent 可顺带将决定关联到真实代码文件和行号，服务端保存文件哈希。决定修订或文件变化后，关联显示待复核；文件关联是 Agent 登记，不证明代码已正确满足决定。
+
+插件还保留了独立的决策证据审计工具，可以读取项目文件、关联引用并导出记录。它是可选的本地网页入口，不是插件运行的必需部分。目前网页展示 audit.v1 审计账本、证据快照、复核和导出；V3 聊天选择及实现关联通过 MCP 查询。网页可单独使用：
 
 ```bash
 python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project serve

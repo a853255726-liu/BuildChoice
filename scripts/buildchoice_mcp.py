@@ -113,6 +113,19 @@ def main():
         require_enabled()
         return decisions.prepare_revision(task_id,decision_id,revision,candidate,reason,session_handle)
 
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_link_implementation(task_id: str, decision_id: str, revision: int, path: str, note: str,
+                                       start_line: int | None = None, end_line: int | None = None,
+                                       session_handle: str | None = None) -> dict[str,Any]:
+        """Link an actual workspace file to the current decision revision after editing it.
+        Give a relative path, a short explanation and optional real line range. The server records
+        a real file hash without executing Git or changing the file.
+        The association is Agent-reported, not proof of correct implementation or human approval.
+        Decision status reports links needing review after a revision or file change.
+        """
+        require_enabled()
+        return decisions.link_implementation(task_id,decision_id,revision,path,note,start_line,end_line,session_handle)
+
     @server.tool(annotations=audit_write)
     def buildchoice_audit_start(title: str, task: str) -> dict:
         """Start an explicitly requested local decision audit. Task text is caller-declared, not user approval."""
@@ -151,7 +164,7 @@ def main():
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         if decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation')]
         return tools
 
     if args.native_settings:

@@ -157,3 +157,9 @@ class DecisionService:
         store=self.store();task=store.task(task_id,self.owner,session_handle)
         if task['binding_status']=='hook_observed' and not session_handle:raise ValueError('Revision requires current Hook context')
         return store.prepare_revision(task,decision_id,revision,candidate,reason)
+
+    def link_implementation(self, task_id, decision_id, revision, path, note,
+                            start_line=None, end_line=None, session_handle=None):
+        from .implementation import link
+        store=self.store();task=store.task(task_id,self.owner,session_handle)
+        return link(store,task,decision_id,revision,path,note,start_line,end_line)

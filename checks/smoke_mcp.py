@@ -23,7 +23,8 @@ decisions.write_text('{"config_version":2,"mode":"pilot","context_ttl_seconds":9
 env={**os.environ,'BUILDCHOICE_WORKSPACE':str(workspace),'BUILDCHOICE_V3_SETTINGS':str(decisions),
      'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
 log=(workspace/'server.stderr.log').open('w',encoding='utf-8')
-process=subprocess.Popen([sys.executable,str(ROOT/'scripts/buildchoice_mcp.py'),'--native-settings','--settings',str(settings)],
+command=[sys.executable,str(ROOT/'scripts/buildchoice_mcp.py'),'--native-settings','--settings',str(settings)]
+process=subprocess.Popen(command,
     stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=log,text=True,encoding='utf-8',env=env)
 replies=queue.Queue()
 def collect():
@@ -63,7 +64,7 @@ try:
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
     names={t['name'] for t in send('tools/list',{})['tools']}
-    assert len(names)==11,names
+    assert len(names)==12,names
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
     assert native['values']['mode']=='Prompt 优先'
@@ -94,6 +95,20 @@ try:
     assert status['confirmation_history'][0]['choice_id']=='A'
     assert status['coverage']==response['coverage']
 
+    (workspace/'profile.py').write_text('visibility = "private"\n',encoding='utf-8')
+    linked=call('buildchoice_link_implementation',{'task_id':response['task_id'],'decision_id':item['decision_id'],
+        'revision':1,'path':'profile.py','note':'Uses the selected private visibility.','start_line':1,'session_handle':confirmed})
+    assert linked['provenance']=='agent_reported_implementation'
+    status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
+    assert not status['implementations'][0]['needs_recheck']
+    (workspace/'profile.py').write_text('visibility = "public"\n',encoding='utf-8')
+    status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
+    assert status['implementations'][0]['needs_recheck']
+    call('buildchoice_decision_prepare_revision',{'task_id':response['task_id'],'decision_id':item['decision_id'],
+        'revision':1,'candidate':candidate(),'reason':'Changed access rule','session_handle':confirmed})
+    status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
+    assert 'DECISION_REVISION_CHANGED' in status['implementations'][0]['reason_codes']
+
     call('buildchoice_settings_update',{'set':{'mode':'完全关闭'}})
     names={t['name'] for t in send('tools/list',{})['tools']}
     assert names=={'buildchoice_settings_read','buildchoice_settings_update','buildchoice_settings_status','buildchoice_decision_status'},names
@@ -102,7 +117,7 @@ try:
     assert blocked.get('isError'),blocked
     call('buildchoice_settings_update',{'set':{'mode':'Prompt 优先','decision_guidance':'关闭'}})
     assert len(send('tools/list',{})['tools'])==8
-    print('PASS actual MCP initialize, 11 tools, settings, audit, Hook/card/confirmation, coverage and off/pilot-off behavior')
+    print('PASS actual MCP initialize, 12 tools, settings, audit, Hook/card/confirmation, coverage, implementation links and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)

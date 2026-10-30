@@ -28,7 +28,9 @@ Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配�
 - `decision_service.py`：来源核验、候选编排及覆盖记录。
 - `decision_store.py`：SQLite 事务、短期句柄、单卡、版本、确认与历史。
 - `decision_cards.py`：固定文本模板。
-- `audit.py` / `audit_web.py`：本地来源快照、决定、引用、复核与报告。
+- `implementation.py`：真实文件位置与哈希、Agent 登记的实现关联及变化提示。
+- `doctor.py`：只读本地安装与可选宿主声明检查，未知状态不报为通过。
+- `audit.py` / `audit_web.py`：可选本地审计工作台，展示 audit.v1 的决定、引用、复核与报告；未扩展为 V3 界面。
 - `buildchoice_mcp.py`：按需审计、决策卡与原生设置；无模型调用接口。
 
 ## 覆盖依据
@@ -44,6 +46,12 @@ Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配�
 audit.v1 保留 sessions、sources、decisions、reviews、events；V3 保留独立任务、候选、确认、上下文、激活卡、幂等操作和事件表。新增覆盖记录复用事件表，不增加数据库迁移。
 
 工具实际读取文件，保存内容与 SHA256。JSON pointer 核对结构化字面值；精确文本引用检查原文是否存在，解释仍需复核。文件变化会使旧复核指纹失效。确认来自当前会话有效卡片的严格回复，Agent 转述不升级为可信确认。
+
+## 实现关联
+
+Agent 在原有开发过程中顺带登记决定与实现文件、可选行号、简短关系说明。服务端读取真实文件并保存 SHA256，使用 IMPLEMENTATION_LINKED 事件保存历史。无需第二轮审查或 Git 子进程。
+
+状态查询重新核对文件；决定版本变化或文件变化时标记对应关联待复核。provenance 始终为 agent_reported_implementation，不能从“哈希未变”推断实现正确。旧确认、审计和事件不受影响，不增加数据库表。
 
 ## 安装与范围
 

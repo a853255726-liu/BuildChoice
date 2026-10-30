@@ -44,6 +44,12 @@ python scripts/buildchoice_decisions.py off
 
 服务端核对 source_id、引用与当前文件哈希，返回独立 source_status；未核实内容不会变成真实来源。coverage 仍是 Agent 声明，不证明没有遗漏，不单独触发卡片或改变四状态。记录存入已有 V3 事件，`buildchoice_decision_status` 可读取最新结果。
 
+## 关联实际实现
+
+在原有实现过程中顺带调用 buildchoice_link_implementation，提交 task_id、decision_id、当前 revision、实际相对路径和简短 note，可附真实起止行号与当前句柄。不另起一轮审查，不将计划中的文件或不存在的行号登记为已实现。
+
+查询 buildchoice_decision_status 可查看 implementations。修改选择后，旧版本的关联进入待复核；代码文件变化或不可读也会提示复核。新版本修改完成后重新登记到当前版本，旧历史保留。该动作不会把 Agent 自报升级为用户确认或正确性证明。
+
 ## 迁移与回退
 
 ```bash

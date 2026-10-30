@@ -1,5 +1,13 @@
 # BuildChoice · 升级说明
 
+## 升级到 0.7.0
+
+新增 `scripts/buildchoice_doctor.py` 和 `buildchoice_link_implementation`。前者只读检查本地环境，可加 --host 查询宿主插件和 Hook 声明；没有独立确认的状态显示未验证。不会修改审批、Hook 信任或安装配置。
+
+实现关联复用 V3 事件表，不改变数据库版本或已有记录。任务状态新增 implementations 字段，记录 Agent 登记的真实文件位置和哈希，并在决定版本或文件变化时提示待复核。保留旧事件，不宣称实现正确性已经独立验证。
+
+网页继续作为可选 audit.v1 审计入口，不是新增功能的必需部分。更新源码或换用新运行包后重新安装插件，以刷新缓存中的工具、Skill 和 Hook；初始化方式不变。
+
 ## 升级到 0.6.0
 
 本版本移除小判别模型、NLI/LoRA 后端、推理 worker、模型清单接入、模型依赖、buildchoice.v1 推断协议及分类器控制面板。原来的模型调用、强制评估和自动调用工具不再提供。保留 Prompt-first、audit.v1 和 decision.v3。

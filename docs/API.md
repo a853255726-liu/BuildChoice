@@ -72,6 +72,14 @@ V3 关键决策引导见 [使用说明](DECISION_GUIDANCE.md) 与 [decision.v3 S
 
 没有将 Agent 声明直接写成可信用户确认的接口。确认来自原生 Hook 的严格回复通道，模拟回调测试与真实宿主验收分别记录。
 
+## 决定与实现关联
+
+`buildchoice_link_implementation(task_id, decision_id, revision, path, note, start_line?, end_line?, session_handle?)` 将工作区真实 UTF-8 文件关联到当前决定版本。path 使用相对路径，note 说明具体关系，行号可省略；文件最大 256 KiB。拒绝越界、私有、链接路径、无效行号、过期版本和跨会话写入。
+
+服务端读取实际文件并保存 SHA256；不执行 Git，不修改文件，不存整段代码快照。同一决定版本/文件/行号重复登记相同内容时不重复写事件；内容或说明变化保留新事件。每任务最多 100 个关联。
+
+返回 provenance=agent_reported_implementation、does_not_prove_correctness=true。该登记不建立用户确认，也不证明实现符合选择。`buildchoice_decision_status` 的 implementations 返回关联、当前 file_status 和 needs_recheck；决定版本变化、文件变化或不可读均提示复核。旧记录保留，没有“自动验证完成”入口。
+
 ## 覆盖记录与设置
 
 `buildchoice_screen_candidates` 的 request 可带 coverage 数组（最多六项）：dimension、status、reason，可选 evidence_refs 与 candidate_ids。维度与形状见 [Schema](contracts/decision-v3.schema.json)。重复维度或未知候选 ID 会拒绝；缺省 coverage 的旧请求仍接受，返回 reported=false。

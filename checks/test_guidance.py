@@ -194,5 +194,62 @@ class GuidanceTests(unittest.TestCase):
         finally:
             module.read,module.WORKSPACE=old_read,old_workspace
 
+    def test_implementation_link_uses_actual_file_and_is_idempotent(self):
+        response=self.service.screen(self.request())
+        item=response['decisions'][0]
+        (self.workspace/'profile.py').write_text('visibility = "private"\n',encoding='utf-8')
+        args=(response['task_id'],item['decision_id'],1,'profile.py','Implements private visibility',1,1)
+        linked=self.service.link_implementation(*args)
+        self.assertEqual(self.service.link_implementation(*args),linked)
+        self.assertTrue(linked['does_not_prove_correctness'])
+        status=self.service.status(response['task_id'])['implementations']
+        self.assertEqual(len(status),1)
+        self.assertEqual(status[0]['file_status'],'unchanged')
+        self.assertFalse(status[0]['needs_recheck'])
+        with DecisionStore(self.workspace).connect() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM decision_v3_events WHERE event_type='IMPLEMENTATION_LINKED'").fetchone()[0],1)
+
+    def test_changed_file_and_decision_revision_mark_link_for_review(self):
+        response=self.service.screen(self.request())
+        item=response['decisions'][0]
+        path=self.workspace/'profile.py';path.write_text('private\n',encoding='utf-8')
+        self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Selected access rule')
+        path.write_text('public\n',encoding='utf-8')
+        self.assertTrue(self.service.status(response['task_id'])['implementations'][0]['needs_recheck'])
+        path.write_text('private\n',encoding='utf-8')
+        self.service.prepare_revision(response['task_id'],item['decision_id'],1,candidate(),'Preference changed')
+        linked=self.service.status(response['task_id'])['implementations'][0]
+        self.assertEqual(linked['file_status'],'unchanged')
+        self.assertEqual(linked['reason_codes'],['DECISION_REVISION_CHANGED'])
+        self.assertTrue(linked['needs_recheck'])
+
+    def test_implementation_rejects_private_escaping_and_invalid_lines(self):
+        response=self.service.screen(self.request());item=response['decisions'][0]
+        (self.workspace/'profile.py').write_text('private\n',encoding='utf-8')
+        for path,start,end in [('../secret',None,None),('.buildchoice_audit/ledger.sqlite3',None,None),
+                               ('profile.py',2,None),('profile.py',None,1),('profile.py',True,None)]:
+            with self.subTest(path=path,start=start,end=end),self.assertRaises((ValueError,OSError)):
+                self.service.link_implementation(response['task_id'],item['decision_id'],1,path,'Code relation',start,end)
+
+    def test_implementation_rejects_stale_revision_or_another_session(self):
+        handle=self.context()
+        response=self.service.screen(self.request(session_handle=handle));item=response['decisions'][0]
+        (self.workspace/'profile.py').write_text('private\n',encoding='utf-8')
+        other=DecisionService(self.workspace,'other-owner',settings_path=self.settings)
+        with self.assertRaises(ValueError):
+            other.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Other session')
+        self.service.prepare_revision(response['task_id'],item['decision_id'],1,candidate(),'New rule',handle)
+        with self.assertRaises(ValueError):
+            self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Old revision',session_handle=handle)
+
+    def test_removed_implementation_file_is_reported_unavailable(self):
+        response=self.service.screen(self.request());item=response['decisions'][0]
+        path=self.workspace/'profile.py';path.write_text('private\n',encoding='utf-8')
+        self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Access rule')
+        path.rename(self.workspace/'profile-renamed.py')
+        linked=self.service.status(response['task_id'])['implementations'][0]
+        self.assertEqual(linked['file_status'],'missing_or_unreadable')
+        self.assertTrue(linked['needs_recheck'])
+
 
 if __name__=='__main__':unittest.main()
