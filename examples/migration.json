@@ -1,0 +1,4 @@
+{
+  "auth": "JWT",
+  "keep_legacy_api": true
+}

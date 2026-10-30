@@ -1,0 +1,20 @@
+{
+  "name": "clarification-gate-local",
+  "interface": {
+    "displayName": "Clarification Gate"
+  },
+  "plugins": [
+    {
+      "name": "clarification-gate-controls",
+      "source": {
+        "source": "local",
+        "path": "./plugins/clarification-gate-controls"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

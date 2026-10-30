@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>判别开关 · Clarification Gate</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/panel.css">
+  <script src="/panel.js" defer></script>
+</head>
+<body>
+  <main class="settings">
+    <header class="brand-row">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✳</span><span>Clarification Gate</span></div>
+      <button id="refresh" class="icon-button" aria-label="刷新状态" title="刷新状态">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-2L20 8M4 16l2.3 3A7 7 0 0 0 18 17"/></svg>
+      </button>
+    </header>
+    <div class="eyebrow">项目扩展设置</div>
+    <h1>先判别，再执行</h1>
+    <p class="intro">为当前项目设置一条固定的判别调用流程。</p>
+
+    <section class="control-card" aria-labelledby="switch-title">
+      <div class="toggle-row">
+        <div class="toggle-copy">
+          <h2 id="switch-title">执行前先调用判别</h2>
+          <p id="switch-description">本轮取得调用回执后，再继续本地工作。</p>
+        </div>
+        <button id="gate-switch" class="switch" role="switch" aria-checked="false" aria-labelledby="switch-title" aria-describedby="switch-description" disabled><span></span></button>
+      </div>
+      <div class="control-bottom"><span id="switch-label">正在读取开关…</span><span id="effect-badge" class="badge neutral">连接中</span></div>
+    </section>
+
+    <div id="notice" class="notice" role="status" hidden>
+      <span class="notice-mark" aria-hidden="true">!</span>
+      <div><strong id="notice-title"></strong><p id="notice-text"></p></div>
+    </div>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="status-section" aria-labelledby="status-heading">
+      <h2 id="status-heading" class="section-heading">运行状态</h2>
+      <dl class="status-list">
+        <div><dt>作用范围</dt><dd><span>当前项目</span><code id="workspace">正在读取…</code></dd></div>
+        <div><dt>判别模型</dt><dd><span id="model-name">正在读取…</span><span id="model-badge" class="small-status">—</span></dd></div>
+        <div><dt>调用检查</dt><dd><span id="hook-summary">正在检查…</span><span id="hook-badge" class="small-status">—</span></dd></div>
+        <div><dt>判别结果</dt><dd><span>建议模式</span><span class="muted">PASS · INSPECT · ASK</span></dd></div>
+      </dl>
+    </section>
+
+    <details id="setup" class="setup">
+      <summary><span>首次启用与检查范围</span><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></summary>
+      <div class="setup-body">
+        <p>在本项目终端启动 <code>codex</code>，输入 <code>/hooks</code>，审阅并信任四项判别调用检查，然后重新打开项目会话。</p>
+        <button id="copy-command" class="text-button">复制 /hooks</button>
+        <ul id="hook-list" class="hook-list"><li class="muted">等待状态数据</li></ul>
+        <p class="scope-note">仅约束受 Hook 覆盖的本地工具和正常结束。超出模型范围会明确登记“不支持”；不会把 ASK 变成强制暂停。托管工具及 Hook 故障不构成完整执行隔离。</p>
+      </div>
+    </details>
+
+    <footer><span id="local-status" class="local-indicator"><i></i><span id="local-label">本地连接</span></span><span id="updated" aria-live="polite">正在同步…</span></footer>
+  </main>
+</body>
+</html>

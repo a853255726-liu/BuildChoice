@@ -1,0 +1,22 @@
+{
+  "name": "clarification-gate-controls",
+  "version": "0.3.0",
+  "description": "Prompt-first clarification with on-demand decision evidence audit; optional experimental classifier.",
+  "author": {
+    "name": "Clarification Gate project"
+  },
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "Clarification Gate",
+    "shortDescription": "Prompt 优先与按需决策证据审计",
+    "longDescription": "默认澄清原则、可追溯决策账本、四种运行模式；分类器作为可选实验能力。",
+    "developerName": "Clarification Gate project",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ]
+  }
+}
