@@ -1,4 +1,4 @@
-# V3 决策引导契约 · M0 冻结
+# BuildChoice · 决策引导接口契约
 
 基线：`faa59babebbe47516d9f6040f6d4953d996ea654`。实现版本 `decision.v3`，新增能力默认关闭；旧四模式、模型阈值和 audit.v1 含义不变。
 
