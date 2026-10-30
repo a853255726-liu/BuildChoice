@@ -15,7 +15,7 @@ def make_card(decision_id, revision, candidate, route):
 
 
 def render(card, position=1, total=1, verified=True):
-    lines = [f'【Clarification Gate · 决策 {position}/{total} · {card["display_id"]} · v{card["revision"]}】',
+    lines = [f'【BuildChoice · 决策 {position}/{total} · {card["display_id"]} · v{card["revision"]}】',
              card['question'], '原因：' + card['why_it_matters']]
     for option in card['options']:
         recommended = card['recommendation'] and card['recommendation']['option_id'] == option['id']
