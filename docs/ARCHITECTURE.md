@@ -60,3 +60,7 @@ JSON pointer 对结构化值进行类型严格的字面比较。多个所引值�
 默认任务路径仅注入原则，不自动提交模型或审计请求。审计由使用者或 Agent 显式发起。
 
 工作台与 MCP 使用目标工作区的 `.gate_audit`。分类器 worker 的 token 和调用状态另存于运行时 `runs/desktop_gate`。配置和资源绑定由插件初始化器管理，插件不自动修改宿主 Hook 信任。
+
+## 名称与兼容性
+
+BuildChoice 是对外使用的项目名称。现有 Python 包 `clarification_gate`、插件安装 ID `clarification-gate-controls`、MCP 服务键 `clarification_gate` 和本地数据目录保持不变，以免旧安装与工作区记录失效。
