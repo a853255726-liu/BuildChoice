@@ -1,4 +1,4 @@
-# 可选分类器接入
+# BuildChoice · 本地模型接入
 
 默认 Prompt-first 和证据审计不需要模型。本仓库同时保留 `PredictorBackend`、本地 worker、字段级 NLI 与证据路由实现，供独立部署模型资源时使用。
 
