@@ -5,7 +5,7 @@ description: 在 BuildChoice V3 pilot 已开启的编程任务中，识别需要
 
 # 关键产品决策引导
 
-提示版本：`candidate-extractor-v3.3`。使用用户指定的产品目标和当前任务范围；本技能不扩大授权，不改变宿主权限审批。
+提示版本：`candidate-extractor-v3.4`。使用用户指定的产品目标和当前任务范围；本技能不扩大授权，不改变宿主权限审批。
 
 ## 先确认是否适用
 
@@ -58,4 +58,14 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 选择变更或代码变化后查询 `buildchoice_decision_status` 的 implementations，检查待复核位置；完成当前版本的修改后重新登记，旧关联保留历史。
 
-任务结束时只简要列出仍未解决且相关的决定。不要把全部账本和内部覆盖记录倾倒给用户。
+## 按需验证决定是否落实
+
+对当前任务中已由 Hook 确认、且有可验证行为的重要决定，可在原有开发/测试流程内调用 `buildchoice_acceptance_prepare`。只用当前 decision_id、revision 和真实句柄；条件含 criterion_id、description、basis、required、evidence_type="behavior" 与实际 test_ids。条件是你的推导，不是用户逐项确认；若引入新的产品行为或扩大范围，回到已有决策流程，不能将推导当授权。
+
+明确列出相关实现、测试、fixture、配置和依赖组成的输入清单。复用已授权的原生命令执行路径显式运行 `scripts/buildchoice_run_verification.py`，固定适配器 python-unittest-v1，test_ids 使用 buildchoice_tests 模块下的真实用例 ID。命令会执行项目代码，遵守宿主既有权限；不因 Skill 而新增授权，不让 MCP 自动运行，也不假设任意现有报告可信。没有合适测试或运行权限时照实保留缺口，不为了拿到通过而制造无意义断言。
+
+采集脚本位于实际运行时目录，使用绑定的 Python 与设置；可从安装数据目录 binding.json 的 runtime_root / python 定位（默认 ~/.buildchoice，独立安装遵循 BUILDCHOICE_DATA）。不要假设目标项目根目录就是插件运行时，也不要创建替代采集脚本或自行追加可信执行事件。
+
+完成代码及行为测试后，可调用 `buildchoice_verify_decision`，传当前 acceptance_id、采集 execution_id、真实代码来源引用和新幂等键。缺少实际执行只能 inconclusive；静态绑定不等于行为验证。查询 status 的 verification 时同时检查 verdict、applicability、current_pass 和范围；历史 passed 且 stale 不能说当前已通过。决策/条件/声明输入/证据改变后，仅在相关任务或用户需要时重做，不在每次工具调用后自动验证，不增加无条件阻塞或独立验证 Agent。
+
+任务结束时简要说明相关的未决选择、当前验证结果及仍缺的证据。不要把全部账本和内部覆盖记录倾倒给用户。

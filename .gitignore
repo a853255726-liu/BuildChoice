@@ -31,6 +31,8 @@ __pycache__/
 
 # Research, validation and presentation materials
 tests/
+!examples/receipt_review/tests/
+!examples/receipt_review/tests/test_receipt.py
 evaluation/
 reports/
 datasets/

@@ -1,5 +1,13 @@
 # BuildChoice · 升级说明
 
+## 升级到 0.8.0
+
+新增两个 MCP 工具、显式测试采集 CLI 和两份契约，使用现有 V3 事件及幂等操作表，无新表或数据库版本迁移。旧任务的 verification 字段为空，不会自动生成验收或回填通过结果。旧确认和 audit.v1 历史保持原含义；回退仍保留 audit.v1。
+
+更新运行时并重新初始化/安装插件以刷新 Skill 与工具缓存。新运行包包含采集入口、内部 worker 和契约，doctor 检查它们是否齐全。默认依赖不含浏览器测试组件；仅运行浏览器示例时另装 requirements-dev.txt。全局 off 与 V3 off 禁用新增 MCP 能力；显式采集 CLI 也检查这两个开关。网页仍只展示 audit.v1。
+
+详见 [决策落实验证](DECISION_VERIFICATION.md)。本地记录属于同一用户信任边界，不防御有权修改 SQLite、运行时或测试代码的恶意本地进程。
+
 ## 升级到 0.7.0
 
 新增 `scripts/buildchoice_doctor.py` 和 `buildchoice_link_implementation`。前者只读检查本地环境，可加 --host 查询宿主插件和 Hook 声明；没有独立确认的状态显示未验证。不会修改审批、Hook 信任或安装配置。

@@ -1,0 +1,13 @@
+{
+  "adapter":"python-unittest-v1",
+  "test_file":"tests/test_receipt.py",
+  "files":{
+    "implementation":["index.html","app.js"],
+    "tests":["tests/test_receipt.py"],
+    "fixtures":["receipt.json"],
+    "config":["config.json"]
+  },
+  "dependencies":["playwright","pyee","greenlet"],
+  "timeout_seconds":60,
+  "scope":"Local receipt-review DOM interaction and formal localStorage writes with a fixed recognition fixture; no camera, OCR or mini-program platform verification."
+}

@@ -78,7 +78,20 @@ V3 关键决策引导见 [使用说明](DECISION_GUIDANCE.md) 与 [decision.v3 S
 
 服务端读取实际文件并保存 SHA256；不执行 Git，不修改文件，不存整段代码快照。同一决定版本/文件/行号重复登记相同内容时不重复写事件；内容或说明变化保留新事件。每任务最多 100 个关联。
 
-返回 provenance=agent_reported_implementation、does_not_prove_correctness=true。该登记不建立用户确认，也不证明实现符合选择。`buildchoice_decision_status` 的 implementations 返回关联、当前 file_status 和 needs_recheck；决定版本变化、文件变化或不可读均提示复核。旧记录保留，没有“自动验证完成”入口。
+返回 provenance=agent_reported_implementation、does_not_prove_correctness=true。该登记不建立用户确认，也不证明实现符合选择。`buildchoice_decision_status` 的 implementations 返回关联、当前 file_status 和 needs_recheck；决定版本变化、文件变化或不可读均提示复核。旧记录保留，关联本身不触发验证。
+
+## 决策落实验证（0.8）
+
+- `buildchoice_acceptance_prepare(task_id, decision_id, revision, criteria, session_handle, idempotency_key)`：仅当前会话、当前已确认版本可创建不可变验收集合。每项含 criterion_id、description、basis、required、evidence_type="behavior"、test_ids（实际 unittest 用例 ID）。返回 acceptance_id、acceptance_version、acceptance_digest、实际 confirmation_id 和 choice；criterion_author=agent、human_approval=not_separately_confirmed。新幂等键创建新版本，旧集合不再代表当前验收。
+- `buildchoice_verify_decision(task_id, decision_id, revision, acceptance_id, code_evidence_refs, session_handle, idempotency_key, execution_id?)`：读取审计来源及显式采集器记录，保存逐项与整体结论。代码引用含 criterion_id、source_id 以及 quote 或 pointer，真实读取成功仅代表静态绑定。无 execution_id 时不执行任何命令，行为结论保持 inconclusive。拒绝未知、跨任务或跨验收集合的执行记录。
+
+契约：[acceptance.v1](contracts/acceptance-v1.schema.json)、[verification.v1](contracts/verification-v1.schema.json)。后者定义显式 InputManifest、内部 WorkerReport、ExecutionReceipt、CodeEvidenceRef 和 VerificationRun；它们不是可直接提交任意报告的 MCP 接口。
+
+结果含 verdict（passed/failed/inconclusive/error）、criteria、execution_summary、input_snapshot、代码引用、规则与运行时版本；另外动态返回 applicability（current/stale）、stale_reasons 和 current_pass。历史 verdict 不因后来变化而被改写；current_pass 仅表示当前声明范围内的必需条件均通过且证据仍有效。零测试、跳过、缺失映射、仅静态引用均不能通过；实际断言失败为 failed，执行错误/超时为 error。幂等重读也重新计算有效性。
+
+`buildchoice_decision_status` 新增 verification.acceptance_sets / verifications（每决定最新记录）及 history_counts；历史完整记录仍留在 V3 事件表。代码、测试、fixture、配置、清单、采集环境文件、适配器/规则/验证运行时、报告/日志任一变更均可使结果 stale，重跑和重新验证后才产生新的当前结果。它不是对整个 Git 仓库或生产环境的完整证明。
+
+采集命令、权限与范围见 [使用说明](DECISION_VERIFICATION.md)。MCP 无命令参数或自动执行通道。全局 off 或 V3 off 时新增工具隐藏并拒绝调用。
 
 ## 覆盖记录与设置
 

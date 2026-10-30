@@ -29,6 +29,9 @@ Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配�
 - `decision_store.py`：SQLite 事务、短期句柄、单卡、版本、确认与历史。
 - `decision_cards.py`：固定文本模板。
 - `implementation.py`：真实文件位置与哈希、Agent 登记的实现关联及变化提示。
+- `acceptance.py`：当前确认绑定、不可变验收条件及独立版本。
+- `verification_inputs.py` / `verification.py`：声明输入/环境指纹、执行回执核对、逐项结论和动态失效；MCP 不执行项目命令。
+- `verification_runner.py` / `verification_worker.py`：仅显式 CLI 启动的固定 unittest 采集器，保留真实用例、退出码、输入前后快照和报告哈希。
 - `doctor.py`：只读本地安装与可选宿主声明检查，未知状态不报为通过。
 - `audit.py` / `audit_web.py`：可选本地审计工作台，展示 audit.v1 的决定、引用、复核与报告；未扩展为 V3 界面。
 - `buildchoice_mcp.py`：按需审计、决策卡与原生设置；无模型调用接口。
@@ -54,6 +57,8 @@ Agent 在原有开发过程中顺带登记决定与实现文件、可选行号�
 状态查询重新核对文件；决定版本变化或文件变化时标记对应关联待复核。provenance 始终为 agent_reported_implementation，不能从“哈希未变”推断实现正确。旧确认、审计和事件不受影响，不增加数据库表。
 
 ## 安装与范围
+
+决策落实验证复用 V3 事件与幂等操作表，新增独立 acceptance.v1 / verification.v1 契约。验收条件为 Agent 推导；本地采集执行为 collector_observed_execution；静态引用为 collector_file_read，三者不替代用户确认。历史 verdict 与当前 applicability 分开；相关输入变化后 current_pass=false。详见 [验证使用说明](DECISION_VERIFICATION.md)。
 
 Python 包、插件 ID、MCP 服务键统一为 `buildchoice`。安装数据使用 `~/.buildchoice`，项目账本使用 `.buildchoice_audit`。插件只注册 UserPromptSubmit Hook；宿主权限审批与 Hook 信任保持独立。
 

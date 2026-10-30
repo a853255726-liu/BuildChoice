@@ -91,6 +91,8 @@ Agent 在同一次候选提取中附上简短的覆盖依据，说明相关维�
 
 完成实现时，Agent 可顺带将决定关联到真实代码文件和行号，服务端保存文件哈希。决定修订或文件变化后，关联显示待复核；文件关联是 Agent 登记，不证明代码已正确满足决定。
 
+0.8 增加可选的决策落实验证：将当前已确认的选择整理为 Agent 推导的验收条件，显式运行已授权的行为测试，再通过 MCP 保存逐项结果。没有实际测试不能通过；决定、验收条件、声明的代码/测试/配置或执行环境发生变化后，旧通过结果显示失效。条件推导不是新的用户授权，静态代码引用不能替代行为测试。见 [决策落实验证](docs/DECISION_VERIFICATION.md)。
+
 插件还保留了独立的决策证据审计工具，可以读取项目文件、关联引用并导出记录。它是可选的本地网页入口，不是插件运行的必需部分。目前网页展示 audit.v1 审计账本、证据快照、复核和导出；V3 聊天选择及实现关联通过 MCP 查询。网页可单独使用：
 
 ```bash
@@ -104,6 +106,7 @@ python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project s
 ## 文档
 
 - [决策卡使用说明](docs/DECISION_GUIDANCE.md)
+- [决策落实验证与示例](docs/DECISION_VERIFICATION.md)
 - [名称与升级说明](docs/UPGRADING.md)
 - [验证方法与范围](docs/VALIDATION.md)
 - [架构](docs/ARCHITECTURE.md)

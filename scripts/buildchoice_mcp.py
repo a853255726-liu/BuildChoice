@@ -126,6 +126,32 @@ def main():
         require_enabled()
         return decisions.link_implementation(task_id,decision_id,revision,path,note,start_line,end_line,session_handle)
 
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_acceptance_prepare(task_id: str, decision_id: str, revision: int,
+                                      criteria: list[dict[str,Any]], session_handle: str,
+                                      idempotency_key: str) -> dict[str,Any]:
+        """Create immutable Agent-derived behavior criteria for the current Hook-confirmed decision.
+        Each criterion: criterion_id, description, basis, required, evidence_type='behavior', test_ids.
+        Test IDs are actual unittest IDs under module buildchoice_tests. This does not approve new
+        product rules, separately confirm the criteria or execute tests. See acceptance-v1 schema.
+        """
+        require_enabled()
+        return decisions.acceptance_prepare(task_id,decision_id,revision,criteria,session_handle,idempotency_key)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_verify_decision(task_id: str, decision_id: str, revision: int, acceptance_id: str,
+                                   code_evidence_refs: list[dict[str,Any]], session_handle: str,
+                                   idempotency_key: str, execution_id: str | None = None) -> dict[str,Any]:
+        """Record per-criterion verification using real code references and optional collector execution.
+        References: criterion_id, source_id, and pointer or quote from a real audit read.
+        No command execution: run the collector explicitly through the existing authorized command
+        path. A report path or Agent claim is not an execution receipt. Missing tests stay inconclusive.
+        Returns historical verdict, current/stale applicability and current_pass within the declared scope.
+        """
+        require_enabled()
+        return decisions.verify_decision(task_id,decision_id,revision,acceptance_id,code_evidence_refs,
+                                         execution_id,session_handle,idempotency_key)
+
     @server.tool(annotations=audit_write)
     def buildchoice_audit_start(title: str, task: str) -> dict:
         """Start an explicitly requested local decision audit. Task text is caller-declared, not user approval."""
@@ -164,7 +190,7 @@ def main():
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         if decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision')]
         return tools
 
     if args.native_settings:

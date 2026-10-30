@@ -1,6 +1,6 @@
 {
   "name": "buildchoice",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "A Codex plugin for reviewing important implementation choices before they become code.",
   "author": {
     "name": "BuildChoice"

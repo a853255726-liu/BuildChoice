@@ -296,6 +296,7 @@ class DecisionStore:
 
     def status(self, task, owner):
         from .implementation import status as implementation_status
+        from .verification import status as verification_status
         items=self.items(task['id']);decisions=[]
         with self.connect() as db:
             for row in items:
@@ -309,4 +310,5 @@ class DecisionStore:
             coverage=json.loads(coverage_row[0]) if coverage_row else {'reported':False,'provenance':'agent_declared','entries':[],'does_not_establish_completeness':True}
         return {'schema_version':'decision.v3','task_id':task['id'],'binding_status':task['binding_status'],
                 'decisions':decisions,'coverage':coverage,'implementations':implementation_status(self,task['id']),
-                'confirmation_history':confirmations,'does_not_authorize_host_operations':True}
+                'confirmation_history':confirmations,'verification':verification_status(self,task['id']),
+                'does_not_authorize_host_operations':True}

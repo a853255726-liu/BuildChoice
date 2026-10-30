@@ -146,7 +146,12 @@ def diagnose(home=None, workspace=None, host=False, timeout=10):
         ready=False
         add('python_dependencies','fail','无法运行绑定的 Python 或读取依赖。','用有效的 Python 3.11+ 重新初始化安装。')
     required=['scripts/buildchoice_mcp.py','scripts/buildchoice_hook.py','scripts/buildchoice_doctor.py',
-              'buildchoice/desktop/implementation.py','configs/buildchoice.json']
+              'buildchoice/desktop/implementation.py','configs/buildchoice.json',
+              'scripts/buildchoice_run_verification.py','scripts/buildchoice_test_worker.py',
+              'buildchoice/desktop/acceptance.py','buildchoice/desktop/verification.py',
+              'buildchoice/desktop/verification_inputs.py','buildchoice/desktop/verification_runner.py',
+              'buildchoice/desktop/verification_worker.py',
+              'docs/contracts/acceptance-v1.schema.json','docs/contracts/verification-v1.schema.json']
     files_ready=all((runtime/name).is_file() for name in required)
     add('runtime_files','pass' if files_ready else 'fail','运行时入口完整。' if files_ready else '运行时入口缺失。',
         '' if files_ready else '恢复 BuildChoice 运行时目录并重新初始化。')

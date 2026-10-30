@@ -52,6 +52,8 @@ python scripts/buildchoice_decisions.py off
 
 ## 迁移与回退
 
+0.8 可在相关实现完成时按需使用验收条件与行为验证，条件由 Agent 从当前已确认选择推导，测试必须通过现有授权路径显式执行。无测试只能标为未验证；文件关联不能替代行为证据。见 [决策落实验证](DECISION_VERIFICATION.md)。
+
 ```bash
 python scripts/buildchoice_decisions.py --workspace /path/to/project migrate
 ```

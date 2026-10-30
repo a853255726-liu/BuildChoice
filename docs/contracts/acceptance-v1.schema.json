@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://buildchoice.local/contracts/acceptance-v1.schema.json",
+  "$defs": {
+    "Criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "criterion_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "evidence_type": {
+          "const": "behavior"
+        },
+        "test_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 20,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "criterion_id",
+        "description",
+        "basis",
+        "required",
+        "evidence_type",
+        "test_ids"
+      ]
+    },
+    "PrepareInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "criterion_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "evidence_type": {
+                "const": "behavior"
+              },
+              "test_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            },
+            "required": [
+              "criterion_id",
+              "description",
+              "basis",
+              "required",
+              "evidence_type",
+              "test_ids"
+            ]
+          },
+          "maxItems": 20,
+          "minItems": 1
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        }
+      },
+      "required": [
+        "decision_id",
+        "revision",
+        "criteria",
+        "idempotency_key"
+      ]
+    },
+    "AcceptanceSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "acceptance.v1"
+        },
+        "acceptance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "decision_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "confirmation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "choice": {
+          "type": "object"
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "criterion_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "evidence_type": {
+                "const": "behavior"
+              },
+              "test_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            },
+            "required": [
+              "criterion_id",
+              "description",
+              "basis",
+              "required",
+              "evidence_type",
+              "test_ids"
+            ]
+          },
+          "maxItems": 20,
+          "minItems": 1
+        },
+        "acceptance_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "acceptance_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "created": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "basis": {
+          "const": "user_confirmed_decision"
+        },
+        "criterion_author": {
+          "const": "agent"
+        },
+        "human_approval": {
+          "const": "not_separately_confirmed"
+        },
+        "coverage_complete": {
+          "const": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "acceptance_id",
+        "task_id",
+        "decision_id",
+        "decision_revision",
+        "confirmation_id",
+        "choice",
+        "criteria",
+        "acceptance_version",
+        "acceptance_digest",
+        "created",
+        "basis",
+        "criterion_author",
+        "human_approval",
+        "coverage_complete"
+      ]
+    }
+  }
+}

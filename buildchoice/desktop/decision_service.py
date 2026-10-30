@@ -163,3 +163,14 @@ class DecisionService:
         from .implementation import link
         store=self.store();task=store.task(task_id,self.owner,session_handle)
         return link(store,task,decision_id,revision,path,note,start_line,end_line)
+
+    def acceptance_prepare(self, task_id, decision_id, revision, criteria, session_handle, idempotency_key):
+        from .acceptance import prepare
+        store=self.store();task=store.task(task_id,self.owner,session_handle)
+        return prepare(store,task,decision_id,revision,criteria,idempotency_key)
+
+    def verify_decision(self, task_id, decision_id, revision, acceptance_id, code_evidence_refs,
+                        execution_id, session_handle, idempotency_key):
+        from .verification import verify
+        store=self.store();task=store.task(task_id,self.owner,session_handle)
+        return verify(store,task,decision_id,revision,acceptance_id,code_evidence_refs,execution_id,idempotency_key)

@@ -1,0 +1,617 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://buildchoice.local/contracts/verification-v1.schema.json",
+  "$defs": {
+    "InputManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "const": "python-unittest-v1"
+        },
+        "test_file": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "implementation": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 64,
+              "minItems": 1
+            },
+            "tests": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 64,
+              "minItems": 1
+            },
+            "fixtures": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 64,
+              "minItems": 0
+            },
+            "config": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 64,
+              "minItems": 0
+            }
+          },
+          "required": [
+            "implementation",
+            "tests",
+            "fixtures",
+            "config"
+          ]
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$"
+          },
+          "maxItems": 8,
+          "minItems": 0
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "adapter",
+        "test_file",
+        "files",
+        "dependencies",
+        "timeout_seconds",
+        "scope"
+      ]
+    },
+    "WorkerReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "execution_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "test_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "status": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "error",
+                  "skipped"
+                ]
+              }
+            },
+            "required": [
+              "test_id",
+              "status"
+            ]
+          },
+          "maxItems": 500,
+          "minItems": 0
+        },
+        "tests_run": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "worker_error": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "execution_id",
+        "nonce",
+        "cases",
+        "tests_run"
+      ]
+    },
+    "CodeEvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "criterion_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "pointer": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "criterion_id",
+        "source_id"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "pointer"
+          ],
+          "not": {
+            "required": [
+              "quote"
+            ]
+          }
+        },
+        {
+          "required": [
+            "quote"
+          ],
+          "not": {
+            "required": [
+              "pointer"
+            ]
+          }
+        }
+      ]
+    },
+    "ExecutionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "execution.v1"
+        },
+        "execution_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "acceptance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "acceptance_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "decision_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "confirmation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "provenance": {
+          "const": "collector_observed_execution"
+        },
+        "started": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "finished": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "maxItems": 20,
+          "minItems": 1
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "execution_status": {
+          "enum": [
+            "completed",
+            "error",
+            "timeout",
+            "output_limit"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "rule_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "runtime_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "adapter": {
+              "const": "python-unittest-v1"
+            },
+            "test_file": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "files": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "implementation": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 64,
+                  "minItems": 1
+                },
+                "tests": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 64,
+                  "minItems": 1
+                },
+                "fixtures": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 64,
+                  "minItems": 0
+                },
+                "config": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 64,
+                  "minItems": 0
+                }
+              },
+              "required": [
+                "implementation",
+                "tests",
+                "fixtures",
+                "config"
+              ]
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$"
+              },
+              "maxItems": 8,
+              "minItems": 0
+            },
+            "timeout_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120
+            },
+            "scope": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          },
+          "required": [
+            "adapter",
+            "test_file",
+            "files",
+            "dependencies",
+            "timeout_seconds",
+            "scope"
+          ]
+        },
+        "manifest_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "manifest_after_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "before": {
+          "type": "object"
+        },
+        "after": {
+          "type": "object"
+        },
+        "environment": {
+          "type": "object"
+        },
+        "environment_after_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "log_sha256": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "report": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "receipt_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "schema_version",
+        "execution_id",
+        "task_id",
+        "acceptance_id",
+        "acceptance_digest",
+        "decision_id",
+        "decision_revision",
+        "confirmation_id",
+        "provenance",
+        "started",
+        "finished",
+        "argv",
+        "cwd",
+        "exit_code",
+        "execution_status",
+        "reason",
+        "adapter_version",
+        "rule_version",
+        "runtime_digest",
+        "manifest",
+        "manifest_path",
+        "manifest_sha256",
+        "manifest_after_sha256",
+        "before",
+        "after",
+        "environment",
+        "environment_after_digest",
+        "report_sha256",
+        "log_sha256",
+        "report",
+        "receipt_digest"
+      ]
+    },
+    "VerificationRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "verification.v1"
+        },
+        "verification_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "decision_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "acceptance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "acceptance_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "execution_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "verdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "inconclusive",
+            "error"
+          ]
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 20,
+          "minItems": 1
+        },
+        "code_evidence": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 50,
+          "minItems": 0
+        },
+        "input_snapshot": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "rule_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "runtime_digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "coverage_complete": {
+          "const": false
+        },
+        "execution_summary": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "verification_id",
+        "task_id",
+        "decision_id",
+        "decision_revision",
+        "acceptance_id",
+        "acceptance_digest",
+        "execution_id",
+        "created",
+        "verdict",
+        "criteria",
+        "code_evidence",
+        "input_snapshot",
+        "rule_version",
+        "runtime_digest",
+        "scope",
+        "coverage_complete",
+        "execution_summary"
+      ]
+    }
+  }
+}

@@ -64,7 +64,7 @@ try:
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
     names={t['name'] for t in send('tools/list',{})['tools']}
-    assert len(names)==12,names
+    assert len(names)==14,names
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
     assert native['values']['mode']=='Prompt 优先'
@@ -104,10 +104,38 @@ try:
     (workspace/'profile.py').write_text('visibility = "public"\n',encoding='utf-8')
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert status['implementations'][0]['needs_recheck']
+    # Preparation and verification are MCP calls; execution is a separate explicit CLI.
+    (workspace/'profile.py').write_text('def can_read(owner, viewer): return owner == viewer\n',encoding='utf-8')
+    (workspace/'test_profile.py').write_text('import unittest\nfrom profile import can_read\nclass Access(unittest.TestCase):\n def test_private(self): self.assertFalse(can_read("alice", "bob"))\n',encoding='utf-8')
+    manifest={'adapter':'python-unittest-v1','test_file':'test_profile.py','files':{'implementation':['profile.py'],
+        'tests':['test_profile.py'],'fixtures':[],'config':[]},'dependencies':[],'timeout_seconds':20,'scope':'Profile access smoke'}
+    (workspace/'manifest.json').write_text(json.dumps(manifest),encoding='utf-8')
+    arguments={'task_id':response['task_id'],'decision_id':item['decision_id'],'revision':1,'session_handle':confirmed}
+    conditions=call('buildchoice_acceptance_prepare',{**arguments,'criteria':[{'criterion_id':'private',
+        'description':'Other users cannot read a private profile.','basis':'Choice A private visibility.','required':True,
+        'evidence_type':'behavior','test_ids':['buildchoice_tests.Access.test_private']}],'idempotency_key':'conditions'})
+    foreign=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,'session_id':'other-smoke-session','turn_id':'1'}))[0]
+    for change in ({'session_handle':foreign},{'revision':99}):
+        rejected=send('tools/call',{'name':'buildchoice_acceptance_prepare','arguments':{**arguments,
+            'criteria':conditions['criteria'],'idempotency_key':'invalid',**change}})
+        assert rejected.get('isError'),rejected
+    verify_args={**arguments,'acceptance_id':conditions['acceptance_id'],'code_evidence_refs':[],'idempotency_key':'no-tests'}
+    assert call('buildchoice_verify_decision',verify_args)['verdict']=='inconclusive'
+    collected=subprocess.run([sys.executable,str(ROOT/'scripts/buildchoice_run_verification.py'),'--workspace',str(workspace),
+        '--acceptance-id',conditions['acceptance_id'],'--manifest','manifest.json','--settings',str(settings),
+        '--decision-settings',str(decisions)],capture_output=True,text=True,encoding='utf-8',env=env,check=True,timeout=30)
+    receipt=json.loads(collected.stdout)
+    verified=call('buildchoice_verify_decision',{**verify_args,'execution_id':receipt['execution_id'],'idempotency_key':'tested'})
+    assert verified['current_pass'],verified
+    (workspace/'profile.py').write_text('def can_read(owner, viewer): return True\n',encoding='utf-8')
+    status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
+    assert not status['verification']['verifications'][0]['current_pass']
     call('buildchoice_decision_prepare_revision',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'candidate':candidate(),'reason':'Changed access rule','session_handle':confirmed})
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert 'DECISION_REVISION_CHANGED' in status['implementations'][0]['reason_codes']
+    rejected=send('tools/call',{'name':'buildchoice_verify_decision','arguments':verify_args})
+    assert rejected.get('isError'),rejected
 
     call('buildchoice_settings_update',{'set':{'mode':'完全关闭'}})
     names={t['name'] for t in send('tools/list',{})['tools']}
@@ -115,9 +143,15 @@ try:
     assert not call('buildchoice_decision_status',{})['enabled']
     blocked=send('tools/call',{'name':'buildchoice_audit_start','arguments':{'title':'Blocked','task':'No write'}})
     assert blocked.get('isError'),blocked
+    for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
+        blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':[],'idempotency_key':'off'} if tool.endswith('prepare') else verify_args)})
+        assert blocked.get('isError'),blocked
     call('buildchoice_settings_update',{'set':{'mode':'Prompt 优先','decision_guidance':'关闭'}})
     assert len(send('tools/list',{})['tools'])==8
-    print('PASS actual MCP initialize, 12 tools, settings, audit, Hook/card/confirmation, coverage, implementation links and off/pilot-off behavior')
+    for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
+        blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':conditions['criteria'],'idempotency_key':'pilot-off'} if tool.endswith('prepare') else verify_args)})
+        assert blocked.get('isError'),blocked
+    print('PASS actual MCP initialize, 14 tools, settings, audit, synthetic Hook confirmation, acceptance, explicit CLI execution, verification, stale results and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)

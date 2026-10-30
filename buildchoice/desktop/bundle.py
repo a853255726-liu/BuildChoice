@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 from buildchoice.desktop.common import ROOT, file_sha
 
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 
 
 def build_core_runtime(destination, root=ROOT):
@@ -14,8 +14,10 @@ def build_core_runtime(destination, root=ROOT):
     names = {p.relative_to(root).as_posix() for p in (root/'buildchoice').rglob('*')
              if p.is_file() and '__pycache__' not in p.parts and p.suffix in ('.py', '.html', '.css', '.js')}
     names.update('scripts/'+n for n in ('buildchoice_mcp.py','buildchoice_hook.py','buildchoice_settings.py',
-                                       'buildchoice_audit.py','buildchoice_decisions.py','buildchoice_doctor.py'))
+                                       'buildchoice_audit.py','buildchoice_decisions.py','buildchoice_doctor.py',
+                                       'buildchoice_run_verification.py','buildchoice_test_worker.py'))
     names.add('docs/contracts/decision-v3.schema.json')
+    names.update('docs/contracts/'+name for name in ('acceptance-v1.schema.json','verification-v1.schema.json'))
     data = {name: (root/name).read_bytes() for name in sorted(names)}
     data['configs/buildchoice.json'] = json.dumps({'config_version':1,'mode':'prompt'}).encode()
     data['configs/decision_v3.json'] = json.dumps({'config_version':2,'mode':'off','context_ttl_seconds':900}).encode()
