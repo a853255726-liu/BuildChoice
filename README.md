@@ -29,7 +29,7 @@ B. 只有指定用户可以查看
 回复 A / B，也可以先讨论两种方式的区别。
 ```
 
-用户选择后，插件会记录这项决定，供后续实现参考。没有需要确认的选择时，不显示决策卡。
+在受信任 Hook 可用的环境中，用户的选项回复会与当前决策绑定并记录，供后续实现参考。没有需要确认的选择时，不显示决策卡。
 
 ## 安装
 
@@ -46,7 +46,13 @@ python plugins/clarification-gate-controls/setup.py \
   --install
 ```
 
-Windows 下可使用相同的 `python` 命令，将 `--workspace` 换成实际项目路径。安装器会准备本地 Python 环境；Codex 的 Hook 需要按宿主提示进行信任确认，安装器不会代为修改审批设置。
+在 Windows PowerShell 中可使用单行命令：
+
+```powershell
+python plugins/clarification-gate-controls/setup.py --workspace "C:\\path\\to\\your-project" --runtime-root . --install
+```
+
+安装器会准备本地 Python 环境。Codex 的 Hook 需要按宿主提示进行信任确认，安装器不会代为修改审批设置。
 
 安装后默认使用轻量的 Prompt-first 澄清策略。要开启对话决策卡，在仓库目录执行：
 
