@@ -35,12 +35,11 @@ B. 核对后保存（推荐）
 
 ## 安装
 
-需要 Python 3.11+ 和支持本地插件的 Codex 环境。当前决策卡功能位于 `feat/decision-discovery-v3` 分支。
+需要 Python 3.11+ 和支持本地插件的 Codex 环境。
 
 ```bash
 git clone https://github.com/a853255726-liu/change-note.git
 cd change-note
-git switch feat/decision-discovery-v3
 
 python plugins/clarification-gate-controls/setup.py \
   --workspace /absolute/path/to/your-project \
