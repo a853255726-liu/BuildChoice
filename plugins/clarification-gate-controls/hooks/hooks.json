@@ -8,7 +8,7 @@
             "type": "command",
             "command": "python \"${PLUGIN_ROOT}/scripts/clarification_gate_plugin_hook.py\"",
             "timeout": 5,
-            "statusMessage": "Clarification Gate: UserPromptSubmit"
+            "statusMessage": "BuildChoice: UserPromptSubmit"
           }
         ]
       }
@@ -20,7 +20,7 @@
             "type": "command",
             "command": "python \"${PLUGIN_ROOT}/scripts/clarification_gate_plugin_hook.py\"",
             "timeout": 5,
-            "statusMessage": "Clarification Gate: PreToolUse"
+            "statusMessage": "BuildChoice: PreToolUse"
           }
         ],
         "matcher": "*"
@@ -33,7 +33,7 @@
             "type": "command",
             "command": "python \"${PLUGIN_ROOT}/scripts/clarification_gate_plugin_hook.py\"",
             "timeout": 5,
-            "statusMessage": "Clarification Gate: PostToolUse"
+            "statusMessage": "BuildChoice: PostToolUse"
           }
         ],
         "matcher": "mcp__clarification_gate__(gate_evaluate|gate_assess_snapshot)$"
@@ -46,7 +46,7 @@
             "type": "command",
             "command": "python \"${PLUGIN_ROOT}/scripts/clarification_gate_plugin_hook.py\"",
             "timeout": 5,
-            "statusMessage": "Clarification Gate: Stop"
+            "statusMessage": "BuildChoice: Stop"
           }
         ]
       }
