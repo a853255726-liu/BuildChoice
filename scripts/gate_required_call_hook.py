@@ -11,10 +11,17 @@ from clarification_gate.desktop.common import WORKSPACE
 
 
 def handle_event(event):
+    from clarification_gate.desktop.decision_hook import handle_prompt as decision_prompt
+    extra=decision_prompt(event,WORKSPACE)
     if mode_of(read_switch()) == 'prompt':
         from clarification_gate.desktop.prompt_policy import handle_prompt
-        return handle_prompt(event, WORKSPACE)
-    return required_event(event)
+        result=handle_prompt(event,WORKSPACE)
+    else:result=required_event(event)
+    if extra is not None:
+        if result is None:return extra
+        output=result.setdefault('hookSpecificOutput',{'hookEventName':event.get('hook_event_name')})
+        output['additionalContext']=output.get('additionalContext','')+'\n'+extra['hookSpecificOutput']['additionalContext']
+    return result
 
 
 def main():

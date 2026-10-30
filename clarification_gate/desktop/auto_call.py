@@ -10,6 +10,13 @@ SWITCH = ROOT / 'configs/gate_auto_call.json'
 EVENTS = ROOT / 'runs/desktop_gate/auto_call_events.jsonl'
 
 
+def decision_guidance_status():
+    """Independent V3 switch, without changing any legacy invocation-mode meaning."""
+    from .decision_settings import read
+    settings=read()
+    return {'mode':settings['mode'],'model_check':settings['model_check']}
+
+
 def read_switch(path=SWITCH):
     value = json.loads(Path(path).read_text(encoding='utf-8'))
     keys = {'config_version', 'enabled', 'scope', 'mechanism', 'enforce_decision'}

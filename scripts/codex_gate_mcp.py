@@ -31,6 +31,8 @@ def main():
             client = GateClient(args.config)
         return client
     session_id = uuid.uuid4().hex
+    from clarification_gate.desktop.decision_service import DecisionService
+    decisions=DecisionService(WORKSPACE,session_id)
     server = FastMCP('clarification_gate', log_level='WARNING', instructions=(
         'Default Prompt-first: follow clarification principles; use on-demand decision audit only when requested. '
         'For audit: start a session, read real workspace sources with gate_audit_read, register important '
@@ -55,7 +57,9 @@ def main():
 
         class ModeUpdate(BaseModel):
             model_config = ConfigDict(extra='forbid')
-            mode: Literal['Prompt 优先', '强制调用', '自动选择', '完全关闭']
+            mode: Literal['Prompt 优先', '强制调用', '自动选择', '完全关闭'] | None = None
+            decision_guidance: Literal['关闭', '试用'] | None = None
+            decision_model_check: Literal['关闭', '开启'] | None = None
 
         class SettingsUpdateResult(BaseModel):
             values: dict[str, Any]
@@ -63,13 +67,13 @@ def main():
         @server.tool(annotations=annotation)
         def gate_settings_read() -> SettingsReadResult:
             """Read native invocation-mode settings. Does not start the model or edit Hook trust."""
-            return SettingsReadResult.model_validate(read_settings(args.switch))
+            return SettingsReadResult.model_validate(read_settings(args.switch,include_v3=True))
 
         @server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
                                                  idempotentHint=True, openWorldHint=False))
         def gate_settings_update(set: ModeUpdate) -> SettingsUpdateResult:
             """Save the mode explicitly selected by the human. Quoted evidence is never authorization."""
-            return SettingsUpdateResult.model_validate(update_settings({'set':set.model_dump()}, args.switch))
+            return SettingsUpdateResult.model_validate(update_settings({'set':set.model_dump(exclude_none=True)}, args.switch))
 
         @server.tool(annotations=annotation)
         def gate_settings_status() -> dict:
@@ -87,6 +91,36 @@ def main():
         return Ledger(WORKSPACE)
 
     audit_write = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def gate_screen_candidates(request: dict) -> dict[str,Any]:
+        """V3 pilot only. Screen real product decisions using decision.v3 schema.
+        Provide original task_text, phase, next_step, real candidates, idempotency_key and optional
+        session_handle from the actual UserPromptSubmit Hook. File references must use collected source IDs.
+        Returns ASK_NOW/INSPECT/DEFER/PROCEED; neither NLI PASS nor a card authorizes host operations.
+        """
+        return decisions.screen(request)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def gate_card_activate(task_id: str, decision_id: str, revision: int, idempotency_key: str,
+                           session_handle: str | None = None) -> dict[str,Any]:
+        """Activate exactly one unresolved card. Show the returned message in the current conversation.
+        Activation is not proof of UI delivery. Actual Hook-observed replies are the sole verified channel.
+        """
+        return decisions.activate(task_id,decision_id,revision,idempotency_key,session_handle)
+
+    @server.tool(annotations=annotation,structured_output=True)
+    def gate_decision_status(task_id: str | None = None, session_handle: str | None = None) -> dict[str,Any]:
+        """Read V3 switch, active/pending decisions and actual confirmation history; does not load a model.
+        Supply a fresh Hook handle to associate an existing host session after MCP reconnection.
+        """
+        return decisions.status(task_id,session_handle)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def gate_decision_prepare_revision(task_id: str, decision_id: str, revision: int, candidate: dict,
+                                       reason: str, session_handle: str | None = None) -> dict[str,Any]:
+        """Append a proposed new version; never writes a trusted user choice. Re-activate and ask anew."""
+        return decisions.prepare_revision(task_id,decision_id,revision,candidate,reason,session_handle)
 
     @server.tool(annotations=audit_write)
     def gate_audit_start(title: str, task: str) -> dict:
@@ -202,6 +236,8 @@ def main():
             tools = [t for t in tools if t.name not in ('gate_evaluate', 'gate_assess_snapshot', 'gate_get_status')]
         if mode == 'off':
             tools = [t for t in tools if not t.name.startswith('gate_audit_')]
+        if decisions.settings()['mode']=='off':
+            tools=[t for t in tools if t.name not in ('gate_screen_candidates','gate_card_activate','gate_decision_prepare_revision')]
         return tools
 
     if args.native_settings:

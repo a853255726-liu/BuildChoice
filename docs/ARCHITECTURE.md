@@ -1,5 +1,13 @@
 # 架构
 
+## V3 独立试验层
+
+主 Agent / Skill 提取候选 → decision.v3 契约 → 实际来源核验 → 可用的 NLI 第二意见 → 确定性四状态 → 对话单卡 → 真实 Hook 回复关联 → 独立 V3 Ledger 表。
+
+`candidate_policy.py` 处理规则与排序；`nli_candidate_adapter.py` 保持原字段模型限制并记录降级；`decision_cards.py` 提供固定模板；`decision_store.py` 使用 SQLite 事务、轮次句柄、单卡状态及版本；`decision_service.py` 编排这些模块。开关在独立 `decision_v3.json`，默认关闭。
+
+NLI 不判断产品决策权或用户授权。旧模式与 audit.v1 路径保留在下方。
+
 ```text
 用户任务 → Prompt 澄清原则 → 主 Agent → 查资料 / 提问 / 执行
                             │

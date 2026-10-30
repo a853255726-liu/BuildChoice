@@ -19,7 +19,7 @@ def build_plugin(root=ROOT):
     package = root/'plugins'/PLUGIN
     write_json(package/'.codex-plugin/plugin.json',{
         'name':PLUGIN,'version':VERSION,'description':'Prompt-first clarification with on-demand decision evidence audit; optional experimental classifier.',
-        'author':{'name':'Clarification Gate project'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json',
+        'author':{'name':'Clarification Gate project'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json','skills':'./skills/',
         'requires_local_executor':True,
         'interface':{'displayName':'Clarification Gate','shortDescription':'Prompt 优先与按需决策证据审计',
                      'longDescription':'默认澄清原则、可追溯决策账本、四种运行模式；分类器作为可选实验能力。',
@@ -55,6 +55,8 @@ def archive_plugin(destination,root=ROOT):
     names = ['.codex-plugin/plugin.json','.mcp.json','hooks/hooks.json','scripts/launch.py',
              'scripts/clarification_gate_plugin_hook.py','setup.py','install_local.py',
              'requirements-core.txt','requirements-model.txt','README.md']
+    names += sorted(p.relative_to(package).as_posix() for p in (package/'skills').rglob('*')
+                    if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts)
     destination = Path(destination)
     destination.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(destination,'w',compression=zipfile.ZIP_DEFLATED) as archive:

@@ -1,6 +1,6 @@
 # Clarification Gate 插件
 
-提供 Prompt-first 原则、原生模式设置、按需决策证据审计与可选分类器接入。
+提供 Prompt-first 原则、原生模式设置、按需决策证据审计与可选分类器接入。0.4.0 新增默认关闭的 V3 决策引导 Skill、逐张决策卡和回复版本记录。
 
 ## 从源码安装
 
@@ -15,7 +15,7 @@ Windows 使用实际的 `Scripts/python.exe` 路径。已有绑定指向另一�
 也可以由根目录 `scripts/build_distribution.py` 构建核心运行包，再用 `--bundle` 初始化：
 
 ```bash
-python setup.py --workspace /path/to/your-project --bundle /path/to/clarification-gate-core-0.3.0.zip --install
+python setup.py --workspace /path/to/your-project --bundle /path/to/clarification-gate-core-0.4.0.zip --install
 ```
 
 初始化器默认仅准备核心依赖。`--with-classifier` 只安装可选依赖，模型资源和匹配的清单需要另外部署。
