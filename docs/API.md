@@ -1,4 +1,6 @@
-# 决策审计接口
+# BuildChoice · MCP 与审计接口
+
+V3 关键决策引导见 [使用说明](DECISION_GUIDANCE.md) 与 [decision.v3 Schema](contracts/decision-v3.schema.json)。以下 audit.v1 接口签名不变。
 
 ## 1. 创建任务
 
@@ -60,3 +62,12 @@
 工作台前端使用 `/api/session`、`/api/source`、`/api/decision`、`/api/review`、`/api/sessions` 和 `/api/report`。请求需要启动页面中的本地会话令牌，使用 `X-Gate-Token` 请求头传递。
 
 本地 HTTP 面向单用户工作台；如需集成 Agent，优先使用 MCP。
+
+## V3 对话接口
+
+- `gate_screen_candidates(request)`：校验候选、核对来源、运行可用 NLI 并给出四状态；按 task_id + idempotency_key 防止重复登记。
+- `gate_card_activate(task_id, decision_id, revision, idempotency_key, session_handle)`：同会话最多激活一张待答卡，返回固定文本与 delivery_status=not_observed。
+- `gate_decision_status(task_id?, session_handle?)`：读取开关、未决项和实际确认历史。可信任务需要当前 Hook 句柄，不能只传 Agent 自报的会话 ID。
+- `gate_decision_prepare_revision(task_id, decision_id, revision, candidate, reason, session_handle)`：追加新版本，清除旧卡激活状态，新版本必须重新得到明确选择。
+
+没有将 Agent 声明直接写成可信用户确认的接口。确认来自原生 Hook 的严格回复通道，模拟回调测试与真实宿主验收分别记录。

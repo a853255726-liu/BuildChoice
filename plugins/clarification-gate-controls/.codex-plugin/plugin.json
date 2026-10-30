@@ -1,18 +1,19 @@
 {
   "name": "clarification-gate-controls",
-  "version": "0.3.0",
-  "description": "Prompt-first clarification with on-demand decision evidence audit; optional experimental classifier.",
+  "version": "0.4.0",
+  "description": "A Codex plugin for reviewing important implementation choices before they become code.",
   "author": {
-    "name": "Clarification Gate project"
+    "name": "BuildChoice"
   },
   "mcpServers": "./.mcp.json",
   "hooks": "./hooks/hooks.json",
+  "skills": "./skills/",
   "requires_local_executor": true,
   "interface": {
-    "displayName": "Clarification Gate",
-    "shortDescription": "Prompt 优先与按需决策证据审计",
-    "longDescription": "默认澄清原则、可追溯决策账本、四种运行模式；分类器作为可选实验能力。",
-    "developerName": "Clarification Gate project",
+    "displayName": "BuildChoice",
+    "shortDescription": "在编程过程中确认重要的实现选择",
+    "longDescription": "结合项目约束整理影响产品行为的选择，在 Codex 对话中逐项确认并记录。默认使用 Prompt-first 策略，决策卡与模型校验可独立启用。",
+    "developerName": "BuildChoice",
     "category": "Developer Tools",
     "capabilities": [
       "Read",

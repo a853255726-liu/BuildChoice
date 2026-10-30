@@ -18,12 +18,12 @@ def build_plugin(root=ROOT):
     root = Path(root)
     package = root/'plugins'/PLUGIN
     write_json(package/'.codex-plugin/plugin.json',{
-        'name':PLUGIN,'version':VERSION,'description':'Prompt-first clarification with on-demand decision evidence audit; optional experimental classifier.',
-        'author':{'name':'Clarification Gate project'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json',
+        'name':PLUGIN,'version':VERSION,'description':'A Codex plugin for reviewing important implementation choices before they become code.',
+        'author':{'name':'BuildChoice'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json','skills':'./skills/',
         'requires_local_executor':True,
-        'interface':{'displayName':'Clarification Gate','shortDescription':'Prompt 优先与按需决策证据审计',
-                     'longDescription':'默认澄清原则、可追溯决策账本、四种运行模式；分类器作为可选实验能力。',
-                     'developerName':'Clarification Gate project','category':'Developer Tools','capabilities':['Read','Write']}})
+        'interface':{'displayName':'BuildChoice','shortDescription':'在编程过程中确认重要的实现选择',
+                     'longDescription':'结合项目约束整理影响产品行为的选择，在 Codex 对话中逐项确认并记录。默认使用 Prompt-first 策略，决策卡与模型校验可独立启用。',
+                     'developerName':'BuildChoice','category':'Developer Tools','capabilities':['Read','Write']}})
     write_json(package/'.mcp.json',{'mcpServers':{'clarification_gate':{
         'command':'python','args':['${PLUGIN_ROOT}/scripts/launch.py'],
         'env':{'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'},'startup_timeout_sec':30,'tool_timeout_sec':120}}})
@@ -31,7 +31,7 @@ def build_plugin(root=ROOT):
     events = {}
     for name in ('UserPromptSubmit','PreToolUse','PostToolUse','Stop'):
         entry = {'hooks':[{'type':'command','command':command,'timeout':5,
-                           'statusMessage':'Clarification Gate: '+name}]}
+                           'statusMessage':'BuildChoice: '+name}]}
         if name == 'PreToolUse':
             entry['matcher'] = '*'
         elif name == 'PostToolUse':
@@ -40,11 +40,12 @@ def build_plugin(root=ROOT):
     write_json(package/'hooks/hooks.json',{'description':'One receipt per supported workspace turn; results remain advisory.','hooks':events})
     marketplace = root/'.claude-plugin/marketplace.json'
     existing = json.loads(marketplace.read_text(encoding='utf-8')) if marketplace.exists() else {
-        'name':'clarification-gate-local','interface':{'displayName':'Clarification Gate'},'plugins':[]}
+        'name':'clarification-gate-local','interface':{'displayName':'BuildChoice'},'plugins':[]}
     if existing.get('name') != 'clarification-gate-local':
         raise ValueError('Unrelated local marketplace exists')
     entry = {'name':PLUGIN,'source':{'source':'local','path':'./plugins/'+PLUGIN},
              'policy':{'installation':'AVAILABLE','authentication':'ON_INSTALL'},'category':'Developer Tools'}
+    existing['interface'] = {'displayName':'BuildChoice'}
     existing['plugins'] = [p for p in existing['plugins'] if p['name']!=PLUGIN]+[entry]
     write_json(marketplace,existing)
     return {'package':str(package),'marketplace':str(marketplace),'plugin':PLUGIN,'version':VERSION}
@@ -55,6 +56,8 @@ def archive_plugin(destination,root=ROOT):
     names = ['.codex-plugin/plugin.json','.mcp.json','hooks/hooks.json','scripts/launch.py',
              'scripts/clarification_gate_plugin_hook.py','setup.py','install_local.py',
              'requirements-core.txt','requirements-model.txt','README.md']
+    names += sorted(p.relative_to(package).as_posix() for p in (package/'skills').rglob('*')
+                    if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts)
     destination = Path(destination)
     destination.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(destination,'w',compression=zipfile.ZIP_DEFLATED) as archive:

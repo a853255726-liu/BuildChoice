@@ -110,14 +110,14 @@ def make_server(workspace, port=0):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Clarification Gate V2 · 决策证据工作台')
+    parser = argparse.ArgumentParser(description='BuildChoice V2 · 决策证据工作台')
     parser.add_argument('--workspace', type=Path, default=Path.cwd())
     parser.add_argument('--port', type=int, default=0)
     parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args()
     server = make_server(args.workspace, args.port)
     url = f'http://127.0.0.1:{server.server_port}/#token={server.local_token}'
-    print('Clarification Gate V2 · 本地决策证据工作台', flush=True)
+    print('BuildChoice V2 · 本地决策证据工作台', flush=True)
     print(url, flush=True)
     print('窗口保持开启；Ctrl+C 停止。数据保存在工作区 .gate_audit。', flush=True)
     if not args.no_browser:

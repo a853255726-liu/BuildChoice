@@ -14,7 +14,7 @@ def binding(home=None):
     value = json.loads((Path(home) if home else data_home()).joinpath('binding.json').read_text(encoding='utf-8'))
     if value.get('binding_version') != 1 or not all(isinstance(value.get(k),str) and Path(value[k]).is_absolute()
             for k in ('python','runtime_root','workspace')):
-        raise ValueError('Invalid Clarification Gate installation binding')
+        raise ValueError('Invalid BuildChoice installation binding')
     for key in ('python','runtime_root','workspace'):
         if not Path(value[key]).exists():
             raise ValueError('Missing installation path: ' + key)
@@ -32,7 +32,7 @@ def run(kind='mcp',home=None):
             stdin=sys.stdin.buffer,stdout=sys.stdout.buffer,stderr=sys.stderr.buffer,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     except Exception as error:
-        print('Clarification Gate setup required: run setup.py before enabling this plugin. '+type(error).__name__,file=sys.stderr)
+        print('BuildChoice setup required: run setup.py before enabling this plugin. '+type(error).__name__,file=sys.stderr)
         # An uninitialized global hook must not block unrelated projects.
         return 1 if kind == 'mcp' else 0
 

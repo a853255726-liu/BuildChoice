@@ -9,5 +9,5 @@ from clarification_gate.desktop.distribution import archive_plugin
 
 if __name__ == '__main__':
     out = ROOT / 'dist'
-    print(json.dumps({'core': build_core_runtime(out / f'clarification-gate-core-{VERSION}.zip'),
-                      'plugin': archive_plugin(out / f'clarification-gate-plugin-{VERSION}.zip')}, indent=2))
+    print(json.dumps({'core': build_core_runtime(out / f'buildchoice-core-{VERSION}.zip'),
+                      'plugin': archive_plugin(out / f'buildchoice-plugin-{VERSION}.zip')}, indent=2))

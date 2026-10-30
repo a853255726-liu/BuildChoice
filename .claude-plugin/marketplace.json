@@ -1,7 +1,7 @@
 {
   "name": "clarification-gate-local",
   "interface": {
-    "displayName": "Clarification Gate"
+    "displayName": "BuildChoice"
   },
   "plugins": [
     {

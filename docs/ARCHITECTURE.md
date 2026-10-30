@@ -1,4 +1,12 @@
-# 架构
+# BuildChoice · 架构
+
+## V3 独立试验层
+
+主 Agent / Skill 提取候选 → decision.v3 契约 → 实际来源核验 → 可用的 NLI 第二意见 → 确定性四状态 → 对话单卡 → 真实 Hook 回复关联 → 独立 V3 Ledger 表。
+
+`candidate_policy.py` 处理规则与排序；`nli_candidate_adapter.py` 保持原字段模型限制并记录降级；`decision_cards.py` 提供固定模板；`decision_store.py` 使用 SQLite 事务、轮次句柄、单卡状态及版本；`decision_service.py` 编排这些模块。开关在独立 `decision_v3.json`，默认关闭。
+
+NLI 不判断产品决策权或用户授权。旧模式与 audit.v1 路径保留在下方。
 
 ```text
 用户任务 → Prompt 澄清原则 → 主 Agent → 查资料 / 提问 / 执行
@@ -52,3 +60,7 @@ JSON pointer 对结构化值进行类型严格的字面比较。多个所引值�
 默认任务路径仅注入原则，不自动提交模型或审计请求。审计由使用者或 Agent 显式发起。
 
 工作台与 MCP 使用目标工作区的 `.gate_audit`。分类器 worker 的 token 和调用状态另存于运行时 `runs/desktop_gate`。配置和资源绑定由插件初始化器管理，插件不自动修改宿主 Hook 信任。
+
+## 名称与兼容性
+
+BuildChoice 是对外使用的项目名称。现有 Python 包 `clarification_gate`、插件安装 ID `clarification-gate-controls`、MCP 服务键 `clarification_gate` 和本地数据目录保持不变，以免旧安装与工作区记录失效。
