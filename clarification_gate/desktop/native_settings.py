@@ -22,7 +22,7 @@ def read_settings(path=SWITCH, include_v3=False):
                        '自动：由 Codex 决定是否调用；关闭：拒绝判别请求。'
                        f'ASK / INSPECT / PASS 均为建议。项目：{WORKSPACE}。'}}, 'required': ['mode']},
         'values': {'mode': LABELS[mode]},
-        'layout': [{'kind': 'group', 'title': 'Clarification Gate',
+        'layout': [{'kind': 'group', 'title': 'BuildChoice',
                     'items': [{'kind': 'property', 'property': 'mode'},
                               {'kind': 'tool', 'tool': 'gate_settings_status',
                                'description': '查看实际模式与 Hook 信任状态（不会启动模型）'}]}]}
