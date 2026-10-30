@@ -1,4 +1,4 @@
-"""Unified plugin metadata and reproducible small source archive (models shipped separately)."""
+"""Unified plugin metadata and reproducible small source archive (no model resources)."""
 import json
 import zipfile
 from pathlib import Path
@@ -22,22 +22,15 @@ def build_plugin(root=ROOT):
         'author':{'name':'BuildChoice'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json','skills':'./skills/',
         'requires_local_executor':True,
         'interface':{'displayName':'BuildChoice','shortDescription':'在编程过程中确认重要的实现选择',
-                     'longDescription':'结合项目约束整理影响产品行为的选择，在 Codex 对话中逐项确认并记录。默认使用 Prompt-first 策略，决策卡与模型校验可独立启用。',
+                     'longDescription':'结合项目约束整理影响产品行为的选择，在 Codex 对话中逐项确认并记录。默认使用 Prompt-first 策略，可独立开启决策卡。',
                      'developerName':'BuildChoice','category':'Developer Tools','capabilities':['Read','Write']}})
     write_json(package/'.mcp.json',{'mcpServers':{'buildchoice':{
         'command':'python','args':['${PLUGIN_ROOT}/scripts/launch.py'],
         'env':{'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'},'startup_timeout_sec':30,'tool_timeout_sec':120}}})
     command = 'python "${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py"'
-    events = {}
-    for name in ('UserPromptSubmit','PreToolUse','PostToolUse','Stop'):
-        entry = {'hooks':[{'type':'command','command':command,'timeout':5,
-                           'statusMessage':'BuildChoice: '+name}]}
-        if name == 'PreToolUse':
-            entry['matcher'] = '*'
-        elif name == 'PostToolUse':
-            entry['matcher'] = 'mcp__buildchoice__(buildchoice_evaluate|buildchoice_assess_snapshot)$'
-        events[name] = [entry]
-    write_json(package/'hooks/hooks.json',{'description':'One receipt per supported workspace turn; results remain advisory.','hooks':events})
+    events = {'UserPromptSubmit': [{'hooks': [{'type':'command','command':command,'timeout':5,
+        'statusMessage':'BuildChoice: UserPromptSubmit'}]}]}
+    write_json(package/'hooks/hooks.json',{'description':'Prompt policy and observed decision replies; never blocks tasks.','hooks':events})
     marketplace = root/'.claude-plugin/marketplace.json'
     existing = json.loads(marketplace.read_text(encoding='utf-8')) if marketplace.exists() else {
         'name':'buildchoice-local','interface':{'displayName':'BuildChoice'},'plugins':[]}
@@ -55,7 +48,7 @@ def archive_plugin(destination,root=ROOT):
     package = Path(build_plugin(root)['package'])
     names = ['.codex-plugin/plugin.json','.mcp.json','hooks/hooks.json','scripts/launch.py',
              'scripts/buildchoice_plugin_hook.py','setup.py','install_local.py',
-             'requirements-core.txt','requirements-model.txt','README.md']
+             'requirements-core.txt','README.md']
     names += sorted(p.relative_to(package).as_posix() for p in (package/'skills').rglob('*')
                     if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts)
     destination = Path(destination)

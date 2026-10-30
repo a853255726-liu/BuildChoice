@@ -68,11 +68,15 @@ python scripts/buildchoice_decisions.py settings
 python scripts/buildchoice_decisions.py off
 ```
 
-决策卡不依赖额外的分类模型。模型校验默认关闭。
+BuildChoice 不包含小判别模型、模型 worker 或模型依赖。候选由当前 Agent 提取，服务端通过项目证据与确定性规则分流。
 
 ## 工作方式
 
+V3 开启时，工作区内的用户消息会取得短期 Hook 句柄；是否正在开发由 Codex 结合本轮消息与对话上下文判断。短句和承接请求不会因为正则未命中被排除，普通咨询仍直接回答。
+
 插件通过一个 Skill 引导 Codex 查阅相关项目资料并整理候选选择。MCP 工具负责检查候选和已有证据，决定是先查文件、现在询问、稍后处理，还是直接继续。需要询问时，一次只展示一张卡。
+
+Agent 在同一次候选提取中附上简短的覆盖依据，说明相关维度已有答案、形成候选、不适用或仍不确定。服务端核对引用并保存记录，不增加第二轮复核；覆盖记录不证明没有遗漏，也不单独触发问题。
 
 确认记录保存在当前项目的 `.buildchoice_audit/ledger.sqlite3`。记录与当前会话、选项及版本关联；用户要求解释或给出自由回答时，不会被直接当作已经确认。决策发生变更时保留旧版本，便于检查后续实现是否需要调整。
 
@@ -84,10 +88,12 @@ python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project s
 
 本地记录不会由插件自动上传。对话决策卡不替代 Codex 自身的文件、网络或命令执行审批。
 
+可通过 `python scripts/buildchoice_settings.py status` 查看运行模式；`off` 完全关闭提示、MCP 审计与决策卡，`prompt` 恢复 Prompt-first。独立启动的审计 CLI/网页仍由使用者显式操作。
+
 ## 文档
 
 - [决策卡使用说明](docs/DECISION_GUIDANCE.md)
 - [名称与升级说明](docs/UPGRADING.md)
+- [验证方法与范围](docs/VALIDATION.md)
 - [架构](docs/ARCHITECTURE.md)
 - [MCP 与数据接口](docs/API.md)
-- [本地模型接入](docs/MODEL_BACKEND.md)

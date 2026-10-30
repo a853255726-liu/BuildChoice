@@ -1,7 +1,5 @@
 {
-  "config_version": 1,
+  "config_version": 2,
   "mode": "off",
-  "model_check": "off",
-  "context_ttl_seconds": 900,
-  "model_runtime": null
+  "context_ttl_seconds": 900
 }

@@ -44,6 +44,15 @@ def pointer_value(text, pointer):
     return value
 
 
+class LedgerConnection(sqlite3.Connection):
+    """Commit/rollback and close; sqlite3's default context only ends the transaction."""
+    def __exit__(self, *exc):
+        try:
+            return super().__exit__(*exc)
+        finally:
+            self.close()
+
+
 class Ledger:
     def __init__(self, workspace, database=None):
         self.workspace = Path(workspace).resolve(strict=True)
@@ -65,7 +74,7 @@ class Ledger:
             ''')
 
     def connect(self):
-        db = sqlite3.connect(self.database, timeout=5)
+        db = sqlite3.connect(self.database, timeout=5, factory=LedgerConnection)
         db.row_factory = sqlite3.Row
         return db
 

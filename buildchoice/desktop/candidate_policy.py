@@ -1,4 +1,4 @@
-"""Deterministic V3 routing. Model suggestions never grant user authorization."""
+"""Deterministic routing based on declared candidates and verified evidence."""
 from copy import deepcopy
 import json
 import re
@@ -43,7 +43,7 @@ def deduplicate(candidates):
     return [result[key] for key in order]
 
 
-def route(candidate, evidence, confirmation=None, model=None, next_step=''):
+def route(candidate, evidence, confirmation=None, next_step=''):
     risks = set(candidate['risk_flags'])
     sensitive = bool(risks)
     dependency = candidate['current_dependency']
@@ -51,9 +51,6 @@ def route(candidate, evidence, confirmation=None, model=None, next_step=''):
     if any(re.search(pattern, next_step, re.I) for risk, pattern in IMMEDIATE_ACTIONS.items() if risk in risks):
         dependency = 'yes'
         reasons.append('IMMEDIATE_EFFECT_OVERRIDES_DEFER')
-    fields = (model or {}).get('fields')
-    if fields and sensitive and (not fields['required'] or fields['resolved']):
-        reasons.append('NLI_DISAGREEMENT_RETAINED')
     if confirmation and confirmation.get('applicable') is True:
         return {'status': 'PROCEED', 'reason_codes': reasons + ['OBSERVED_USER_CHOICE'], 'effective_dependency': dependency}
     if evidence.get('conflict') or evidence.get('invalid'):
@@ -69,7 +66,7 @@ def route(candidate, evidence, confirmation=None, model=None, next_step=''):
         return {'status': 'PROCEED', 'reason_codes': reasons + ['LITERAL_PROJECT_CONSTRAINT'], 'effective_dependency': dependency}
     status = 'DEFER' if dependency == 'no' else 'ASK_NOW'
     reasons += ['USER_CHOICE', 'UNRESOLVED', 'LATER_DEPENDENCY' if status == 'DEFER' else 'CURRENT_OR_UNCERTAIN_DEPENDENCY']
-    if sensitive: reasons.append('EXPLICIT_USER_AUTHORIZATION_NOT_INFERRED_FROM_NLI')
+    if sensitive: reasons.append('EXPLICIT_USER_CHOICE_REQUIRED')
     return {'status': status, 'reason_codes': reasons, 'effective_dependency': dependency}
 
 

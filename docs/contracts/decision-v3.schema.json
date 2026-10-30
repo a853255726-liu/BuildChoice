@@ -297,6 +297,13 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 150
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CoverageEntry"
+          },
+          "maxItems": 6
         }
       },
       "required": [
@@ -395,26 +402,6 @@
         "blocked_steps"
       ]
     },
-    "ModelFields": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "required": {
-          "type": "boolean"
-        },
-        "resolved": {
-          "type": "boolean"
-        },
-        "indexed": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "required",
-        "resolved",
-        "indexed"
-      ]
-    },
     "Decision": {
       "type": "object",
       "additionalProperties": false,
@@ -464,25 +451,6 @@
           "minLength": 1,
           "maxLength": 100
         },
-        "model_status": {
-          "enum": [
-            "OK",
-            "UNSUPPORTED",
-            "NOT_READY",
-            "ERROR",
-            "SKIPPED"
-          ]
-        },
-        "model_fields": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/ModelFields"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "card": {
           "oneOf": [
             {
@@ -507,8 +475,6 @@
         "status",
         "reason_codes",
         "evidence_status",
-        "model_status",
-        "model_fields",
         "card",
         "confirmation_status"
       ]
@@ -538,11 +504,11 @@
           },
           "maxItems": 50
         },
-        "model_diagnostics": {
-          "type": "object"
-        },
         "does_not_authorize_host_operations": {
           "const": true
+        },
+        "coverage": {
+          "$ref": "#/$defs/CoverageSummary"
         }
       },
       "required": [
@@ -550,8 +516,8 @@
         "task_id",
         "binding_status",
         "decisions",
-        "model_diagnostics",
-        "does_not_authorize_host_operations"
+        "does_not_authorize_host_operations",
+        "coverage"
       ]
     },
     "ConfirmationEvent": {
@@ -601,6 +567,150 @@
         "provenance",
         "host_turn_digest",
         "user_prompt_digest"
+      ]
+    },
+    "CoverageEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "enum": [
+            "data_storage",
+            "access_visibility",
+            "automation_confirmation",
+            "external_cost",
+            "failure_recovery",
+            "scope_delivery"
+          ]
+        },
+        "status": {
+          "enum": [
+            "resolved",
+            "candidate",
+            "not_applicable",
+            "uncertain"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 5
+        },
+        "candidate_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "uniqueItems": true,
+          "maxItems": 50
+        }
+      },
+      "required": [
+        "dimension",
+        "status",
+        "reason"
+      ]
+    },
+    "CoverageRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "enum": [
+            "data_storage",
+            "access_visibility",
+            "automation_confirmation",
+            "external_cost",
+            "failure_recovery",
+            "scope_delivery"
+          ]
+        },
+        "status": {
+          "enum": [
+            "resolved",
+            "candidate",
+            "not_applicable",
+            "uncertain"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 5
+        },
+        "candidate_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "uniqueItems": true,
+          "maxItems": 50
+        },
+        "source_status": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "dimension",
+        "status",
+        "reason",
+        "source_status",
+        "source_ids"
+      ]
+    },
+    "CoverageSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reported": {
+          "type": "boolean"
+        },
+        "provenance": {
+          "const": "agent_declared"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CoverageRecord"
+          },
+          "maxItems": 6
+        },
+        "does_not_establish_completeness": {
+          "const": true
+        }
+      },
+      "required": [
+        "reported",
+        "provenance",
+        "entries",
+        "does_not_establish_completeness"
       ]
     }
   },

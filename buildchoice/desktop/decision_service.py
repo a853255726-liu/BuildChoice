@@ -7,13 +7,11 @@ from .decision_cards import make_card
 from .decision_contracts import validate
 from .decision_settings import read as read_settings
 from .decision_store import DecisionStore
-from .nli_candidate_adapter import assess_candidates, RuntimeProvider
 
 
 class DecisionService:
-    def __init__(self, workspace, owner, settings_path=None, database=None, provider=None):
+    def __init__(self, workspace, owner, settings_path=None, database=None):
         self.workspace=workspace;self.owner=owner;self.settings_path=settings_path;self.database=database
-        self.provider=provider
 
     def settings(self):
         return read_settings(self.settings_path) if self.settings_path is not None else read_settings()
@@ -25,7 +23,7 @@ class DecisionService:
 
     def evidence(self, store, candidate, resources):
         result={'status':'missing','invalid':False,'conflict':False,'unread':False,'applicable_constraint':False,
-                'source_ids':[],'contents':[],'observed_values':[]}
+                'source_ids':[],'observed_values':[]}
         literals=[];constraint=False
         for reference in candidate['evidence_refs']:
             with store.connect() as db:
@@ -52,7 +50,6 @@ class DecisionService:
                 elif reference['quote'] not in source['content']:result['invalid']=True
             except (OSError,ValueError,KeyError,IndexError,TypeError):result['invalid']=True
             result['source_ids'].append(source['id'])
-            result['contents'].append({'source_id':source['id'],'path':source['locator'],'sha256':source['digest'],'content':source['content']})
         result['conflict']=len(set(literals))>1
         for resource in resources:
             if field_key(candidate['field']) in {field_key(f) for f in resource['covers']}:
@@ -64,6 +61,16 @@ class DecisionService:
                           'bound_for_review' if result['source_ids'] else 'missing')
         return result
 
+    def coverage(self, store, request):
+        """Record the Agent's explanation; source binding does not prove coverage."""
+        entries=[]
+        for entry in request.get('coverage',[]):
+            probe={'field':entry['dimension'],'evidence_refs':entry.get('evidence_refs',[]),'options':[]}
+            evidence=self.evidence(store,probe,[])
+            entries.append({**entry,'source_status':evidence['status'],'source_ids':evidence['source_ids']})
+        return {'reported':'coverage' in request,'provenance':'agent_declared',
+                'entries':entries,'does_not_establish_completeness':True}
+
     def screen(self, request):
         validate('ScreenRequest',request)
         store=self.store()
@@ -72,15 +79,17 @@ class DecisionService:
         if task['binding_status']=='hook_observed' and not request.get('session_handle'):
             raise ValueError('Observed tasks require a fresh Hook context for screening')
         cached=store.begin_operation(task['id'],'screen',request['idempotency_key'],request)
-        if cached is not None:return cached
+        if cached is not None:
+            # Historical responses remain on disk, but retired fields leave the live API.
+            cached.pop('model_diagnostics',None)
+            cached.setdefault('coverage',{'reported':False,'provenance':'agent_declared','entries':[],
+                                         'does_not_establish_completeness':True})
+            for decision in cached['decisions']:
+                for name in ('model_status','model_fields'):decision.pop(name,None)
+            return validate('ScreenResponse',cached)
         resources=request.get('resources',[])
         evidence={c['field']:self.evidence(store,c,resources) for c in candidates}
-        content={s['source_id']:s for e in evidence.values() for s in e['contents']}
-        full_evidence='\n\n'.join(encode(content[k]) for k in sorted(content))
-        settings=self.settings()
-        if self.provider is None:self.provider=RuntimeProvider(settings['model_runtime'])
-        models,diagnostics=assess_candidates(request['task_text'],candidates,full_evidence,resources,
-                                            settings['model_check']=='on',self.provider)
+        coverage=self.coverage(store,request)
         existing={r['field_key']:r for r in store.items(task['id'])}
         decisions=[]
         for candidate in candidates:
@@ -92,11 +101,10 @@ class DecisionService:
                 if (old['options']!=candidate['options'] or old['category']!=candidate['category'] or
                         not set(candidate['risk_flags']).issubset(old['risk_flags']) or old_evidence['invalid']):
                     confirmation=None
-            model=models[candidate['field']]
-            policy=route(candidate,ev,confirmation,model,request['next_step'])
+            policy=route(candidate,ev,confirmation,next_step=request['next_step'])
             result={'decision_id':'pending','candidate_ids':candidate['_candidate_ids'],'field':candidate['field'],'revision':1,
                     'status':policy['status'],'reason_codes':policy['reason_codes'],'evidence_status':ev['status'],
-                    'model_status':model['status'],'model_fields':model['fields'],'card':None,
+                    'card':None,
                     'confirmation_status':'user_message_observed' if confirmation else 'awaiting_user' if task['binding_status']=='hook_observed' else 'agent_reported_unverified'}
             ident,revision=store.save_item(task['id'],key,candidate,result,prior)
             if prior and prior['state']=='confirmed' and confirmation is None and revision==prior['revision']:
@@ -108,9 +116,9 @@ class DecisionService:
             store.write_item(task['id'],key,candidate,result,prior)
             decisions.append(validate('Decision',result))
         response={'schema_version':'decision.v3','task_id':task['id'],'binding_status':task['binding_status'],
-                  'decisions':decisions,'model_diagnostics':diagnostics,'does_not_authorize_host_operations':True}
+                  'decisions':decisions,'coverage':coverage,'does_not_authorize_host_operations':True}
         validate('ScreenResponse',response)
-        with store.connect() as db:store.event(db,task['id'],'MODEL_CHECK_RECORDED',diagnostics)
+        with store.connect() as db:store.event(db,task['id'],'COVERAGE_RECORDED',coverage)
         store.finish_operation(task['id'],'screen',request['idempotency_key'],response)
         return response
 
@@ -127,7 +135,7 @@ class DecisionService:
     def status(self, task_id=None, session_handle=None):
         settings=self.settings()
         if settings['mode']=='off':
-            return {'schema_version':'decision.v3','enabled':False,'mode':'off','model_check':settings['model_check'],'decisions':[]}
+            return {'schema_version':'decision.v3','enabled':False,'mode':'off','decisions':[]}
         store=self.store()
         if task_id:
             task=store.task(task_id,self.owner,session_handle)
@@ -138,7 +146,7 @@ class DecisionService:
                 tasks=[dict(r) for r in db.execute('SELECT * FROM decision_v3_tasks WHERE workspace=? AND host_session_digest=? ORDER BY created',
                        (str(store.workspace),ctx['host_session_digest']))]
             else:tasks=[dict(r) for r in db.execute("SELECT * FROM decision_v3_tasks WHERE owner=? AND binding_status='unverified' ORDER BY created",(self.owner,))]
-        return {'schema_version':'decision.v3','enabled':True,'mode':'pilot','model_check':settings['model_check'],
+        return {'schema_version':'decision.v3','enabled':True,'mode':'pilot',
                 'binding_status':'hook_observed' if ctx else 'unverified',
                 'tasks':[store.status(task,self.owner) for task in tasks],'does_not_authorize_host_operations':True}
 

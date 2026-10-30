@@ -10,6 +10,7 @@ import secrets
 import sqlite3
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 from .audit import Ledger, encode, now
 
@@ -43,7 +44,7 @@ class DecisionStore:
                 return
             backup = self.database.with_name(self.database.name + '.before-v3.bak')
             if not backup.exists():
-                with sqlite3.connect(backup) as destination: db.backup(destination)
+                with closing(sqlite3.connect(backup)) as destination: db.backup(destination)
             db.executescript('''
             BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS decision_v3_migrations(version INTEGER PRIMARY KEY, applied TEXT, backup TEXT);
@@ -285,6 +286,7 @@ class DecisionStore:
             if field_key(candidate['field'])!=row['field_key']:raise ValueError('A revision must preserve decision identity')
             next_revision=revision+1
             result=json.loads(row['routing_json']);result.update(revision=next_revision,status='ASK_NOW',reason_codes=['REVISION_REQUIRES_NEW_USER_CHOICE'],confirmation_status='awaiting_user')
+            for name in ('model_status','model_fields'):result.pop(name,None)
             result['card']=make_card(decision_id,next_revision,candidate,{'effective_dependency':candidate['current_dependency']})
             db.execute("UPDATE decision_v3_items SET state='superseded' WHERE id=? AND revision=?",(decision_id,revision))
             db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE decision_id=?',(decision_id,))
@@ -297,9 +299,12 @@ class DecisionStore:
         with self.connect() as db:
             for row in items:
                 current=json.loads(row['routing_json']);current.update(state=row['state'],needs_recheck=bool(row['needs_recheck']),confirmation=self.confirmation(row))
+                for name in ('model_status','model_fields'):current.pop(name,None)
                 if current['confirmation']:
                     current.update(status='PROCEED',card=None,confirmation_status='user_message_observed')
                 decisions.append(current)
             confirmations=[dict(r) for r in db.execute('SELECT c.* FROM decision_v3_confirmations c JOIN decision_v3_items i ON c.decision_id=i.id AND c.revision=i.revision WHERE i.task_id=? ORDER BY c.created',(task['id'],))]
+            coverage_row=db.execute("SELECT data_json FROM decision_v3_events WHERE task_id=? AND event_type='COVERAGE_RECORDED' ORDER BY id DESC LIMIT 1",(task['id'],)).fetchone()
+            coverage=json.loads(coverage_row[0]) if coverage_row else {'reported':False,'provenance':'agent_declared','entries':[],'does_not_establish_completeness':True}
         return {'schema_version':'decision.v3','task_id':task['id'],'binding_status':task['binding_status'],
-                'decisions':decisions,'confirmation_history':confirmations,'does_not_authorize_host_operations':True}
+                'decisions':decisions,'coverage':coverage,'confirmation_history':confirmations,'does_not_authorize_host_operations':True}

@@ -1,50 +1,48 @@
 # BuildChoice · 决策卡使用说明
 
-V3 是独立试验功能，默认关闭。旧 Prompt-first、四种调用模式和 audit.v1 继续可用。主 Agent 发现候选，服务端筛选，用户在原对话逐张回答；不需要卡片网页。
+V3 默认关闭。主 Agent 在实际开发时发现候选，服务端依据项目证据和规则分流；用户在原对话逐张回答。项目已移除小判别模型，不需要下载权重或启动推理服务。
 
 ## 开关
 
 ```bash
+python scripts/buildchoice_settings.py status
 python scripts/buildchoice_decisions.py settings
 python scripts/buildchoice_decisions.py pilot
-python scripts/buildchoice_decisions.py model-on
-python scripts/buildchoice_decisions.py model-off
 python scripts/buildchoice_decisions.py off
 ```
 
-也可使用原生设置的“V3 关键决策引导”和“V3 NLI 第二意见”。两个开关与旧模式解耦，关闭 V3 不改变旧模式。V3 不会为了取得分类器回执擅自开启旧 required 模式。
+原生设置提供 Prompt 优先 / 完全关闭和独立 V3 试用开关。完全关闭停用提示、MCP 审计与决策卡；重新启用 Prompt 优先后，仍使用保存的 V3 选择。
 
-## 对话流程
+## 触发与对话
 
-1. 受支持的 UserPromptSubmit Hook 提供本轮短期 `buildchoice-v3-ctx-...` 句柄。
-2. 主 Agent 使用 `decision-discovery` Skill，读取直接相关资料，再提交候选；零候选直接继续。
-3. INSPECT 先读资料；DEFER 留到相关依赖；ASK_NOW 每次激活并展示一张卡。
-4. 用户明确回复 A/B 或卡号加“选 A”。同会话、未过期、当前版本的一张待答卡，才由 Hook 记录观察到的选择。
-5. 自由回答、混合指令和“解释一下”不自动确认。用户改变选择则创建新 revision，再明确确认。
+1. V3 开启时，工作区内有效 UserPromptSubmit 提供 `buildchoice-v3-ctx-...` 短期句柄，不以开发正则作为准入门槛。
+2. Agent 结合当前消息和上下文判断是否正在实施开发，能处理“给现有项目加登录”“这里改成自动保存”“按刚才说的做”等短句。纯解释与咨询直接回答，句柄本身不要求筛选或提问。
+3. 实际开发时一次提取候选与覆盖依据；不增加第二轮复核。INSPECT 先查资料；DEFER 留到依赖步骤；ASK_NOW 一次一张卡；零候选直接继续。
+4. 用户明确回复 A/B 或卡号加“选 A”，只绑定同会话、未过期、当前版本的一张待答卡。解释、自由回答和混合指令不自动确认。
+5. 用户改变选择时追加版本，再明确确认；保留旧记录，受影响实现标记待复核。
 
-“激活”不证明 UI 实际展示。缺少受信任 Hook 时可以正常聊天，但产品记录保持 `agent_reported_unverified`，没有把 Agent 转述升级为可信确认的 MCP 接口。
+新任务 task_text 保持本轮用户原文，不能把对话重写为伪造的用户消息。仅重筛同一任务时使用原 task_id 与 task_text；本轮扩展任务目标时用本轮原文建立新范围。前文帮助理解，但不替代真实消息绑定。
 
-## 本地模型
+激活卡片不证明 UI 已展示。缺少受信任 Hook 时可正常聊天，但确认保持 `agent_reported_unverified`。
 
-仓库不包含模型权重。V3 可复用独立安装的冻结 NLI 运行时，在本地配置 `configs/decision_v3.json`：
+## 覆盖依据
+
+在原有提取中顺带记录，最多六项：数据与保存、权限与可见性、自动化与确认、外部依赖与费用、失败与恢复、范围与交付。只填相关维度，不机械填满。
 
 ```json
 {
-  "config_version": 1,
-  "mode": "pilot",
-  "model_check": "on",
-  "context_ttl_seconds": 900,
-  "model_runtime": {
-    "python": "/absolute/path/to/runtime/bin/python",
-    "root": "/absolute/path/to/frozen-runtime",
-    "config": "/absolute/path/to/frozen-runtime/configs/buildchoice.toml"
-  }
+  "candidates": [],
+  "coverage": [
+    {"dimension":"access_visibility","status":"resolved","reason":"项目约束明确仅本人可见","evidence_refs":[{"source_id":"src-...","quote":"仅本人可见"}]},
+    {"dimension":"external_cost","status":"not_applicable","reason":"本次只修改本地展示逻辑"},
+    {"dimension":"failure_recovery","status":"uncertain","reason":"当前尚未查清失败后的恢复要求"}
+  ]
 }
 ```
 
-该文件属于本地运行配置，不应提交个人绝对路径。NLI 在独立进程加载原后端，不改变权重、阈值、源清单或原 worker；保留真实 margin scores、阈值和版本。分数不是已校准的正确概率。
+这是筛选请求的局部示例，完整请求还需 task_text、phase、next_step、idempotency_key 和当前句柄。status 可为 resolved / candidate / not_applicable / uncertain；候选关联使用 request 内真实 candidate_id。
 
-只处理 2/3 个真实不同字段的批次。单候选、多未读资源、超长证据明确标为不支持，不补字段、不截断。未部署模型则返回 NOT_READY，规则路径继续工作。
+服务端核对 source_id、引用与当前文件哈希，返回独立 source_status；未核实内容不会变成真实来源。coverage 仍是 Agent 声明，不证明没有遗漏，不单独触发卡片或改变四状态。记录存入已有 V3 事件，`buildchoice_decision_status` 可读取最新结果。
 
 ## 迁移与回退
 
@@ -52,18 +50,8 @@ python scripts/buildchoice_decisions.py off
 python scripts/buildchoice_decisions.py --workspace /path/to/project migrate
 ```
 
-首次增加独立 V3 表前会保存 SQLite 备份，不改变 audit.v1 决定或 reviews 的含义。关闭 V3 即可停用，无需回滚。
+首次建立 V3 表前备份 SQLite，audit.v1 含义不变。关闭 V3 即可停用。若确需移除 V3 表，关闭试用并停止相关会话后显式运行 rollback；回退先完整备份当前数据库，再只移除 V3 表，保留 audit.v1。
 
-如果确实要移除 V3 表，先关闭 pilot、停止相关会话，再显式运行：
+## 信任与保存
 
-```bash
-python scripts/buildchoice_decisions.py --workspace /path/to/project rollback
-```
-
-回退先完整备份当前数据库，再只移除 V3 表；迁移之后新写入的 audit.v1 记录仍保留。备份包含 V3 历史，请按自己的数据保留规则管理。
-
-## 信任与范围
-
-句柄关联到本地受信任宿主 Hook 回调及其实际输入。它不是防御能任意修改本用户数据库、执行本地回调的恶意程序的密码学边界。原生工具权限和审批始终独立。
-
-默认只保存任务摘要、消息哈希、选项和状态，不无差别保存聊天全文。候选和主动审计的文件内容仍可能包含用户主动提交的信息；不自动上传。
+句柄依赖受信任本地宿主回调，不是防御能任意修改本用户数据库或执行本地回调的程序的密码学边界。默认保存摘要、消息哈希、选项、覆盖理由和状态，不无差别保存聊天全文，不自动上传。原生工具权限和审批独立。

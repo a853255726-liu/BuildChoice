@@ -1,1 +1,1 @@
-"""Local Codex integration, independent of the classifier architecture."""
+"""Local Codex guidance, evidence auditing and decision history."""

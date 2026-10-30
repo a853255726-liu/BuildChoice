@@ -1,25 +1,17 @@
 # BuildChoice 插件
 
-BuildChoice 在 Codex 中帮助用户确认重要的实现选择，提供按需决策卡、本地选择记录和项目文件证据审计。默认使用 Prompt-first 策略，分类模型为可选能力。
+BuildChoice 在 Codex 中帮助用户确认重要实现选择，提供按需决策卡、本地选择记录和项目文件证据审计。默认使用 Prompt-first，V3 独立开启，无小判别模型或推理服务。
 
-## 从源码安装
+## 安装
 
-先在运行时项目建立 Python 3.11+ 环境并安装根目录 `requirements.txt`，然后：
-
-```bash
-python setup.py --workspace /path/to/your-project --runtime-root /path/to/buildchoice --reuse-python /path/to/venv/bin/python --install
-```
-
-Windows 使用实际的 `Scripts/python.exe` 路径。已有绑定指向另一工作区时，使用独立 `--data-home`。
-
-也可以由根目录 `scripts/build_distribution.py` 构建核心运行包，再用 `--bundle` 初始化：
+从插件目录执行，使用实际运行时路径：
 
 ```bash
-python setup.py --workspace /path/to/your-project --bundle /path/to/buildchoice-core-0.4.0.zip --install
+python setup.py --workspace /path/to/your-project --runtime-root /path/to/BuildChoice --install
 ```
 
-初始化器默认仅准备核心依赖。`--with-classifier` 只安装可选依赖，模型资源和匹配的清单需要另外部署。
+安装器准备核心依赖；已有环境可指定 `--reuse-python /path/to/venv/bin/python`，Windows 使用实际 Scripts/python.exe。已有绑定指向另一工作区时，指定独立 `--data-home`。
 
-新安装默认 Prompt-first，可通过四个 MCP 工具建立账本、读取来源、登记决定和取得报告。审计数据保存于绑定工作区 `.buildchoice_audit`。
+可由根目录 `scripts/build_distribution.py` 构建运行包，再通过 `--bundle /path/to/buildchoice-core-0.6.0.zip` 初始化。该版本不再接受模型依赖、设备或 worker 端口参数。
 
-UserPromptSubmit Hook 注入原则，其他 Hook 支持可选强制调用。非托管 Hook 通过宿主正常审阅流程启用，初始化器不修改信任状态。
+插件仅注册 UserPromptSubmit Hook，用于澄清原则与实际回复关联。Hook 信任由宿主正常审阅，初始化器不修改审批。项目账本保存于 `.buildchoice_audit`。

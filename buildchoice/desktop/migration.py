@@ -5,6 +5,7 @@ import re
 import tomllib
 import uuid
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 
@@ -92,7 +93,7 @@ def rollback_decision_database(workspace):
     ledger=Ledger(workspace)
     backup=ledger.database.with_name(ledger.database.name+'.before-v3-rollback-'+uuid.uuid4().hex+'.bak')
     with ledger.connect() as db:
-        with sqlite3.connect(backup) as out:db.backup(out)
+        with closing(sqlite3.connect(backup)) as out:db.backup(out)
         tables=[r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'decision_v3_%'")]
         allowed={'decision_v3_migrations','decision_v3_tasks','decision_v3_items','decision_v3_confirmations',
                  'decision_v3_contexts','decision_v3_active','decision_v3_operations','decision_v3_events'}

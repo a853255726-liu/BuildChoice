@@ -1,4 +1,4 @@
-"""Dependency-free launcher shared by the installed MCP server and its four Hooks."""
+"""Dependency-free launcher shared by the installed MCP server and its prompt Hook."""
 import json
 import os
 import subprocess
@@ -25,7 +25,7 @@ def run(kind='mcp',home=None):
     try:
         value = binding(home)
         root = Path(value['runtime_root'])
-        script = root/'scripts'/('buildchoice_mcp.py' if kind == 'mcp' else 'buildchoice_required_call_hook.py')
+        script = root/'scripts'/('buildchoice_mcp.py' if kind == 'mcp' else 'buildchoice_hook.py')
         command = [value['python'],str(script)] + (['--native-settings'] if kind == 'mcp' else [])
         return subprocess.call(command, cwd=root, env={**os.environ,
             'BUILDCHOICE_WORKSPACE':value['workspace'], 'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'},

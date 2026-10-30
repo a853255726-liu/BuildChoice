@@ -1,9 +1,0 @@
-{
-  "config_version": 4,
-  "enabled": false,
-  "scope": "workspace",
-  "mechanism": "prompt_first_hooks",
-  "enforce_call": false,
-  "enforce_decision": false,
-  "mode": "prompt"
-}

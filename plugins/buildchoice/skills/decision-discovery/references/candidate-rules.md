@@ -33,4 +33,10 @@ evidence_refs 仅用真实 source_id，并提供 pointer 或 quote。来源关�
 
 ## 卡片处理
 
-服务端四状态不等同原 NLI 三行动。仅 ASK_NOW 可激活卡；每次一张。解释、不确定、混合指令和自由表述不能自动落为确认。高后果操作仍需要宿主原生许可。
+服务端使用确定性四状态。仅 ASK_NOW 可激活卡；每次一张。解释、不确定、混合指令和自由表述不能自动落为确认。高后果操作仍需要宿主原生许可。
+
+## 覆盖记录
+
+coverage 在同次提取中附带，不另做一轮检查。最多六项：data_storage / access_visibility / automation_confirmation / external_cost / failure_recovery / scope_delivery。每项 dimension、status、reason 必填，evidence_refs 与 candidate_ids 可选；status 为 resolved / candidate / not_applicable / uncertain。
+
+只填本次相关维度。资料未查清用 uncertain，reason 不超过 300 字符；来源必须真实采集。候选为空也可记录已明确或不适用的依据；这些声明不能证明没有遗漏，不单独决定发卡。

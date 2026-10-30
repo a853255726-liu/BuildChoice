@@ -1,4 +1,4 @@
-"""One initializer for model resources, Python dependencies and local plugin installation.
+"""Initialize the source runtime, Python dependencies and local plugin installation.
 
 stdlib only until dependencies are prepared. No automatic trust or authentication changes.
 """
@@ -70,7 +70,7 @@ def extract_bundle(bundle, destination):
     return index
 
 
-def prepare_python(home, reuse=None, with_classifier=False):
+def prepare_python(home, reuse=None):
     if reuse:
         python = Path(reuse).resolve()
     else:
@@ -80,11 +80,7 @@ def prepare_python(home, reuse=None, with_classifier=False):
         python = environment/('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
         # Only initializer runs installers. Installing the plugin never runs package-manager lifecycle scripts.
         subprocess.run([str(python),'-m','pip','install','-r',str(PACKAGE/'requirements-core.txt')],check=True)
-        if with_classifier:
-            subprocess.run([str(python),'-m','pip','install','torch==2.11.0',
-                            '--index-url','https://download.pytorch.org/whl/cpu'],check=True)
-            subprocess.run([str(python),'-m','pip','install','-r',str(PACKAGE/'requirements-model.txt')],check=True)
-    imports = 'mcp,jsonschema,openai_codex' + (',torch,transformers,peft' if with_classifier else '')
+    imports = 'mcp,jsonschema,openai_codex'
     check = subprocess.run([str(python),'-c',
         'import sys,'+imports+'; '
         'assert sys.version_info >= (3,11); print("DEPENDENCIES_OK")'],
@@ -94,11 +90,11 @@ def prepare_python(home, reuse=None, with_classifier=False):
     return python
 
 
-def initialize(workspace, *, bundle=None, runtime_root=None, reuse_python=None, home=None, port=8769, device='cpu', with_classifier=False):
+def initialize(workspace, *, bundle=None, runtime_root=None, reuse_python=None, home=None):
     home = Path(home or data_home()).resolve()
     workspace = Path(workspace).resolve(strict=True)
-    if not workspace.is_dir() or not 1024 <= port <= 65535:
-        raise ValueError('Invalid workspace or loopback port')
+    if not workspace.is_dir():
+        raise ValueError('Invalid workspace')
     home.mkdir(parents=True,exist_ok=True)
     old_binding = home/'binding.json'
     if old_binding.exists():
@@ -116,24 +112,15 @@ def initialize(workspace, *, bundle=None, runtime_root=None, reuse_python=None, 
         if not root.exists():
             extract_bundle(bundle,root)
         else:
-            # Do not replace a running installation or overwrite its models/config on a repeated setup.
+            # Do not replace a running installation or overwrite its configuration on a repeated setup.
             manifest = json.loads((root/'runtime_manifest.json').read_text(encoding='utf-8'))
             if manifest.get('bundle_version') != 1:
                 raise ValueError('Existing runtime is invalid')
-    for member in ('scripts/buildchoice_mcp.py','configs/buildchoice.toml',
-                   'docs/contracts/buildchoice-v1.schema.json'):
+    for member in ('scripts/buildchoice_mcp.py','scripts/buildchoice_hook.py','buildchoice/desktop/settings.py',
+                   'docs/contracts/decision-v3.schema.json'):
         if not (root/member).is_file():
             raise ValueError('Runtime is missing '+member)
-    python = prepare_python(home,reuse_python,with_classifier)
-    if not runtime_root and not old_binding.exists():
-        config = root/'configs/buildchoice.toml'
-        text = config.read_text(encoding='utf-8').replace('port = 8769',f'port = {port}').replace('device = "cpu"',f'device = "{device}"')
-        config.write_text(text,encoding='utf-8')
-    # New installations default to Prompt-first; existing workspace selections are preserved.
-    switch = root/'configs/buildchoice_auto_call.json'
-    if not switch.exists():
-        subprocess.run([str(python),str(root/'scripts/buildchoice_auto_call.py'),'prompt'],
-                       cwd=root,stdout=subprocess.DEVNULL,check=True)
+    python = prepare_python(home,reuse_python)
     value = {'binding_version':1,'python':str(python),'runtime_root':str(root),'workspace':str(workspace)}
     temporary = home/'binding.tmp'
     temporary.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -155,13 +142,10 @@ if __name__ == '__main__':
     parser.add_argument('--runtime-root',type=Path)
     parser.add_argument('--reuse-python',type=Path)
     parser.add_argument('--data-home',type=Path)
-    parser.add_argument('--port',type=int,default=8769)
-    parser.add_argument('--device',choices=['cpu','cuda:0'],default='cpu')
     parser.add_argument('--install',action='store_true')
-    parser.add_argument('--with-classifier',action='store_true',help='Optional model dependencies; use a model-inclusive bundle')
     args = parser.parse_args()
     report = initialize(args.workspace,bundle=args.bundle,runtime_root=args.runtime_root,
-        reuse_python=args.reuse_python,home=args.data_home,port=args.port,device=args.device,with_classifier=args.with_classifier)
+        reuse_python=args.reuse_python,home=args.data_home)
     print(json.dumps(report,ensure_ascii=False,indent=2))
     if args.install:
         install(args.workspace,report['python'],report['data_home'])

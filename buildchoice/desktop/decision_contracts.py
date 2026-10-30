@@ -13,6 +13,12 @@ def validate(kind, value):
         ids = [c['candidate_id'] for c in value['candidates']]
         if len(ids) != len(set(ids)):
             raise ValueError('Duplicate request-local candidate ID')
+        dimensions=[entry['dimension'] for entry in value.get('coverage',[])]
+        if len(dimensions)!=len(set(dimensions)):
+            raise ValueError('Duplicate coverage dimension')
+        for entry in value.get('coverage',[]):
+            if not set(entry.get('candidate_ids',[]))<=set(ids):
+                raise ValueError('Coverage references an unknown request-local candidate')
         for candidate in value['candidates']:
             options = [o['id'] for o in candidate['options']]
             if len(options) != len(set(options)):

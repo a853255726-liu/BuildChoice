@@ -1,5 +1,5 @@
 {
-  "description": "One receipt per supported workspace turn; results remain advisory.",
+  "description": "Prompt policy and observed decision replies; never blocks tasks.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -9,44 +9,6 @@
             "command": "python \"${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py\"",
             "timeout": 5,
             "statusMessage": "BuildChoice: UserPromptSubmit"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py\"",
-            "timeout": 5,
-            "statusMessage": "BuildChoice: PreToolUse"
-          }
-        ],
-        "matcher": "*"
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py\"",
-            "timeout": 5,
-            "statusMessage": "BuildChoice: PostToolUse"
-          }
-        ],
-        "matcher": "mcp__buildchoice__(buildchoice_evaluate|buildchoice_assess_snapshot)$"
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py\"",
-            "timeout": 5,
-            "statusMessage": "BuildChoice: Stop"
           }
         ]
       }
