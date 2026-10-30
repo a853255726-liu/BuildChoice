@@ -26,9 +26,9 @@ def handle_prompt(event,workspace,settings_path=None):
     relevant=eligible or observed.get('confirmation_status') not in (None,'none')
     if not relevant:return None
     if observed.get('session_handle'):
-        context=('Clarification Gate V3 pilot：当前 Hook 关联句柄 '+observed['session_handle']+'。'
+        context=('BuildChoice V3 pilot：当前 Hook 关联句柄 '+observed['session_handle']+'。'
                  '仅实际开发任务使用 decision-discovery Skill；先查询 gate_decision_status，按需筛选候选，一次一张卡。'
                  '用户回复状态：'+observed.get('confirmation_status','none')+'。')
     else:
-        context='Clarification Gate V3：本轮缺少可核验的 Hook 身份，确认记录必须保持未核验；不阻塞原编程任务。'
+        context='BuildChoice V3：本轮缺少可核验的 Hook 身份，确认记录必须保持未核验；不阻塞原编程任务。'
     return {'hookSpecificOutput':{'hookEventName':'UserPromptSubmit','additionalContext':context}}
