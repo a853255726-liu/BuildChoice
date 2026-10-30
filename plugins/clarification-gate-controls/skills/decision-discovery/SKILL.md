@@ -1,6 +1,6 @@
 ---
 name: decision-discovery
-description: 在 Clarification Gate V3 pilot 已开启的编程任务中，识别需要用户决定的重要产品选择，使用 MCP 筛选并在当前对话中逐张展示决策卡。普通咨询、纯解释和已明确的低影响修改不启动此流程。
+description: 在 BuildChoice V3 pilot 已开启的编程任务中，识别需要用户决定的重要产品选择，使用 MCP 筛选并在当前对话中逐张展示决策卡。普通咨询、纯解释和已明确的低影响修改不启动此流程。
 ---
 
 # 关键产品决策引导
