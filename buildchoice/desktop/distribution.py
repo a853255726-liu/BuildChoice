@@ -47,7 +47,7 @@ def build_plugin(root=ROOT):
 def archive_plugin(destination,root=ROOT):
     package = Path(build_plugin(root)['package'])
     names = ['.codex-plugin/plugin.json','.mcp.json','hooks/hooks.json','scripts/launch.py',
-             'scripts/buildchoice_plugin_hook.py','setup.py','install_local.py',
+             'scripts/buildchoice_plugin_hook.py','setup.py','install_local.py','installation.py',
              'requirements-core.txt','README.md']
     names += sorted(p.relative_to(package).as_posix() for p in (package/'skills').rglob('*')
                     if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts)

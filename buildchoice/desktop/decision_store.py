@@ -165,16 +165,18 @@ class DecisionStore:
                     outcome={'confirmation_status':'not_confirmed','reason':'EXPIRED_OR_SUPERSEDED_CARD'}
                 else:
                     card=json.loads(row['routing_json'])['card']; text=prompt.strip()
-                    selected=re.fullmatch(r'(?:(D[0-9A-F]{8})\s+)?(?:选\s*)?([ABC])',text)
+                    from .choice_reply import parse_choice
+                    selected=parse_choice(text,card)
                     valid_ids={o['id'] for o in card['options']}
-                    if selected and selected[2] in valid_ids and (selected[1] is None or selected[1]==card['display_id']):
+                    if selected and selected['choice_id'] in valid_ids:
                         db.execute('INSERT INTO decision_v3_confirmations VALUES(?,?,?,?,?,?,?,?)',
-                            ('conf-'+uuid.uuid4().hex,row['id'],row['revision'],selected[2],'user_message_observed',turn_hash,prompt_hash,now()))
+                            ('conf-'+uuid.uuid4().hex,row['id'],row['revision'],selected['choice_id'],'user_message_observed',turn_hash,prompt_hash,now()))
                         db.execute("UPDATE decision_v3_items SET state='confirmed' WHERE id=? AND revision=?",(row['id'],row['revision']))
                         db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE workspace=? AND host_session_digest=?',
                                    (str(self.workspace),session_hash))
                         linked_task=row['task_id']
-                        outcome={'confirmation_status':'user_message_observed','decision_id':row['id'],'revision':row['revision'],'choice_id':selected[2]}
+                        outcome={'confirmation_status':'user_message_observed','decision_id':row['id'],'revision':row['revision'],
+                            'choice_id':selected['choice_id'],'reply_method':selected['method']}
                         self.event(db,row['task_id'],'USER_CHOICE_OBSERVED',outcome)
                     elif text in ('暂缓','稍后决定','defer') and card['allow_defer']:
                         db.execute("UPDATE decision_v3_items SET state='deferred' WHERE id=? AND revision=?",(row['id'],row['revision']))
@@ -185,7 +187,8 @@ class DecisionStore:
                     else:
                         db.execute("UPDATE decision_v3_items SET state='needs_explanation' WHERE id=? AND revision=?",(row['id'],row['revision']))
                         linked_task=row['task_id'];outcome={'confirmation_status':'awaiting_user','decision_id':row['id'],
-                            'reason':'EXPLICIT_CHOICE_REQUIRED','delivery_status':'not_observed'}
+                            'reason':'EXPLICIT_CHOICE_REQUIRED','delivery_status':'not_observed',
+                            'reply_hint':'可回复“我选第二个”、完整方案名称，或单独的选项字母。'}
                         self.event(db,row['task_id'],'USER_REPLY_NOT_AUTOCONFIRMED',{'decision_id':row['id'],'prompt_digest':prompt_hash})
             handle='buildchoice-v3-ctx-'+secrets.token_urlsafe(24)
             if active is None:
@@ -362,13 +365,13 @@ class DecisionStore:
 
     def prepare_revision(self, task, decision_id, revision, candidate, reason):
         from .decision_cards import make_card
-        from .candidate_policy import field_key
+        from .candidate_policy import candidate_key
         with self.connect() as db:
             self.begin(db)
             row=db.execute('SELECT * FROM decision_v3_items WHERE id=? AND task_id=? AND revision=?',(decision_id,task['id'],revision)).fetchone()
             latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(decision_id,)).fetchone()[0]
             if row is None or revision!=latest:raise ValueError('Revision source is stale')
-            if field_key(candidate['field'])!=row['field_key']:raise ValueError('A revision must preserve decision identity')
+            if candidate_key(candidate)!=row['field_key']:raise ValueError('A revision must preserve decision identity')
             next_revision=revision+1
             result=json.loads(row['routing_json']);result.update(revision=next_revision,status='ASK_NOW',reason_codes=['REVISION_REQUIRES_NEW_USER_CHOICE'],confirmation_status='awaiting_user')
             result.pop('memory',None)

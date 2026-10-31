@@ -52,7 +52,7 @@ buildchoice_memory(query="", include_archived=false, session_handle) 需要当�
 
 Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的用户确认，不能直接用来创建仅接受本任务确认的验收集合。状态查询会重新核对复用规则的有效性。
 
-候选的 memory_intent 为 reuse / change / uncertain，缺省 uncertain。仅核实需求未变且范围一致时使用 reuse；change 或 uncertain 不会静默沿用长期规则。自动复用还要求字段、类别与选项含义一致；没有结构化 value 时标签与后果也须一致。匹配结果为 PROJECT_MEMORY_RULE、confirmation_status=project_rule_reused，并保存原确认来源。适用范围的判断仍来自 Agent，不是语义证明。
+候选的 memory_intent 为 reuse / change / uncertain，缺省 uncertain。仅核实需求未变且范围一致时使用 reuse。decision_key 是项目内稳定的决定标识，option_key 是稳定的选项标识，均为小写字母开头的 2–120 位字母、数字、点、下划线或连字符。显示字段和 A/B 排序可变，稳定键保持同一含义；显式 value 改变仍重新确认。未提供键的旧候选继续按字段、取值及选项后果匹配。匹配返回 PROJECT_MEMORY_RULE、project_rule_reused 和原确认来源。
 
 ## 决策引导接口
 
@@ -63,7 +63,7 @@ Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的
 - `buildchoice_decision_status(task_id?, session_handle?)`：读取开关、未决项和实际确认历史。可信任务需要当前 Hook 句柄，不能只传 Agent 自报的会话 ID。
 - `buildchoice_decision_prepare_revision(task_id, decision_id, revision, candidate, reason, session_handle)`：追加新版本，清除旧卡激活状态，新版本必须重新得到明确选择。
 
-没有将 Agent 声明直接写成可信用户确认的接口。确认来自原生 Hook 的严格回复通道，模拟回调测试与真实宿主验收分别记录。
+确认来自原生 Hook，支持当前卡片的明确字母、序号、完整名称和推荐方案表达；含糊表达返回 awaiting_user 和 reply_hint。没有将 Agent 自报选择写成用户确认的接口。
 
 ## 决定与实现关联
 

@@ -32,6 +32,7 @@ def handle_prompt(event,workspace,settings_path=None):
                  '实际开发先读取项目决策记忆；普通参考不等于长期规则，冲突需核实，记忆不授予宿主操作权限。'+
                  ('检测到开发表达提示。' if hint else '')+
                  '用户回复状态：'+observed.get('confirmation_status','none')+'。'+
+                 (observed.get('reply_hint','') if observed.get('confirmation_status')=='awaiting_user' else '')+
                  ('记忆管理结果：'+str({k:v for k,v in observed.items() if k.startswith('memory_') or k=='reason'})+'。'
                   if 'memory_status' in observed else ''))
     else:

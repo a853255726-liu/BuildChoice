@@ -30,6 +30,10 @@ jobs:
         run: python -m unittest discover -s checks -p test_screen_recovery.py -v
       - name: Cross-chat decision memory and recoverable forgetting
         run: python -m unittest discover -s checks -p test_decision_memory.py -v
+      - name: Private installation and project dispatch
+        run: python -m unittest discover -s checks -p test_project_installation.py -v
+      - name: Natural choices and stable retrieval
+        run: python -m unittest discover -s checks -p test_choice_and_retrieval.py -v
 
   offline-and-browser:
     name: Unit, MCP, packaging and browser behavior
@@ -79,6 +83,4 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-# These checks use local fixtures and synthetic Hook events. They do not
-# establish that an actual Codex user session loaded/trusted the plugin,
-# nor do they evaluate discovery quality on independent real prompts.
+# These checks use local fixtures and synthetic Hook events.

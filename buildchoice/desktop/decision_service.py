@@ -2,7 +2,7 @@
 import hashlib
 import json
 from .audit import encode, pointer_value, MAX_BYTES
-from .candidate_policy import deduplicate, route, sort_key, field_key
+from .candidate_policy import deduplicate, route, sort_key, field_key, candidate_key
 from .decision_cards import make_card
 from .decision_contracts import validate
 from .decision_settings import read as read_settings
@@ -138,7 +138,7 @@ class DecisionService:
         existing={r['field_key']:r for r in store.items(task['id'])}
         decisions=[]
         for candidate in candidates:
-            key=field_key(candidate['field']);prior=existing.get(key);confirmation=store.confirmation(prior) if prior else None
+            key=candidate_key(candidate);prior=existing.get(key);confirmation=store.confirmation(prior) if prior else None
             ev=evidence[candidate['field']]
             if confirmation:
                 old=json.loads(prior['candidate_json'])
@@ -163,7 +163,8 @@ class DecisionService:
                     policy={'status':'PROCEED','reason_codes':['PROJECT_MEMORY_RULE'],
                         'effective_dependency':policy['effective_dependency']}
                     reused=True
-            result={'decision_id':'pending','candidate_ids':candidate['_candidate_ids'],'field':candidate['field'],'revision':1,
+            result={'decision_id':'pending','decision_key':memory.decision_key(candidate),
+                    'candidate_ids':candidate['_candidate_ids'],'field':candidate['field'],'revision':1,
                     'status':policy['status'],'reason_codes':policy['reason_codes'],'evidence_status':ev['status'],
                     'card':None,
                     'confirmation_status':'user_message_observed' if confirmation else 'awaiting_user' if task['binding_status']=='hook_observed' else 'agent_reported_unverified'}

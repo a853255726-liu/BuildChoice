@@ -11,9 +11,26 @@ from datetime import datetime
 from .audit import encode
 from .audit import MAX_BYTES
 from .candidate_policy import field_key
+import math
+import unicodedata
 
 REFERENCE_SECONDS = 30 * 24 * 60 * 60
 COMMANDS = {'长期记住': 'promote', '取消长期': 'unpin', '遗忘': 'forget', '恢复': 'restore'}
+
+
+def decision_key(candidate):
+    return candidate.get('decision_key') or 'legacy.'+hashlib.sha256(
+        (candidate['category']+':'+field_key(candidate['field'])).encode()).hexdigest()[:20]
+
+
+def terms(value):
+    """Word tokens plus Chinese phrases/bigrams; no isolated-character recall."""
+    value=unicodedata.normalize('NFKC',value).casefold()
+    result=set(re.findall(r'[a-z0-9_]+',value))
+    for phrase in re.findall(r'[\u4e00-\u9fff]{2,}',value):
+        result.add(phrase)
+        result.update(phrase[i:i+2] for i in range(len(phrase)-1))
+    return result
 
 
 def memory_id(confirmation_id):
@@ -78,7 +95,7 @@ def records(store, db, clock=None):
         state = ('superseded' if latest.get(row['id']) != row['revision'] or row['state'] != 'confirmed'
                  else 'forgotten' if forgotten else 'archived' if expires is not None and clock >= expires
                  else 'needs_review' if not sources_current(store,db,candidate['evidence_refs'],checked) else 'active')
-        result.append({'memory_id': ident, 'task_id': row['task_id'], 'decision_id': row['id'],
+        result.append({'memory_id': ident,'decision_key':decision_key(candidate), 'task_id': row['task_id'], 'decision_id': row['id'],
             'revision': row['revision'], 'confirmation_id': row['confirmation_id'],
             'provenance': 'user_message_observed', 'field': candidate['field'],
             'category': candidate['category'], 'question': candidate['question'],
@@ -92,17 +109,22 @@ def choice_value(option):
     return encode(option.get('value', option['label']))
 
 
+def choice_identity(option):
+    if not option.get('option_key'):return choice_value(option)
+    return encode({'option_key':option['option_key'],**({'value':option['value']} if 'value' in option else {})})
+
+
 def rule_meaning(entry):
     chosen=entry['choice']
-    return (entry['category'],choice_value(chosen),
-        '' if 'value' in chosen else chosen['tradeoff'],tuple(sorted(entry['risk_flags'])))
+    return (entry['category'],choice_identity(chosen),
+        '' if 'value' in chosen or chosen.get('option_key') else chosen['tradeoff'],tuple(sorted(entry['risk_flags'])))
 
 
 def conflicts(entries):
     groups = {}
     for entry in entries:
         if entry['state'] == 'active' and entry['tier'] == 'rule':
-            groups.setdefault(field_key(entry['field']), []).append(entry)
+            groups.setdefault(entry['decision_key'], []).append(entry)
     return [{'field': group[0]['field'], 'memory_ids': [e['memory_id'] for e in group]}
             for group in groups.values() if len({rule_meaning(e) for e in group}) > 1]
 
@@ -114,17 +136,25 @@ def recall(store, db, query='', include_archived=False, limit=30):
         raise ValueError('include_archived must be boolean')
     entries = records(store, db)
     visible = [e for e in entries if include_archived or e['state'] == 'active']
-    # Transparent lexical recall only. Partial matches are suggestions, not proof of scope.
-    terms = re.findall(r'[a-z0-9_]+|[\u4e00-\u9fff]', query.casefold())
+    query_terms=terms(query)
+    documents={e['memory_id']:terms(e['field']+' '+e['question']+' '+e['choice']['label']+' '+e['choice'].get('tradeoff','')) for e in visible}
+    frequencies={term:sum(term in document for document in documents.values()) for term in query_terms}
+    def exact(entry):
+        value=query.strip().casefold()
+        return bool(value) and value in (entry['memory_id'].casefold(),entry['decision_id'].casefold(),entry['decision_key'].casefold())
     def score(entry):
-        text = (entry['field'] + ' ' + entry['question'] + ' ' + entry['choice']['label']).casefold()
-        return sum(term in text for term in set(terms))
-    if terms:
-        visible = [e for e in visible if score(e) > 0 or e['memory_id'].casefold() in query.casefold()]
+        if exact(entry):return 1000
+        document=documents[entry['memory_id']]
+        value=sum((1+math.log(1+(len(documents)+1)/(frequencies[t]+1)))*min(len(t),6)
+                  for t in query_terms if t in document)
+        if len(query.strip())>=2 and query.casefold() in (entry['field']+' '+entry['question']+' '+entry['choice']['label']).casefold():value+=20
+        return value
+    if query.strip():
+        visible = [e for e in visible if exact(e) or score(e)>0]
     visible.sort(key=lambda e: (score(e), e['tier'] == 'rule', e['confirmed_at'], e['memory_id']), reverse=True)
     return {'schema_version': 'memory.v1', 'entries': visible[:limit], 'total_matches': len(visible),
         'truncated': len(visible) > limit, 'conflicts': conflicts(entries),
-        'reference_retention_days': 30, 'matching': 'lexical_suggestions_not_semantic_scope_proof',
+        'reference_retention_days': 30, 'matching': 'weighted_words_cjk_bigrams_and_stable_ids',
         'commands': {key: key + ' <memory_id>' for key in COMMANDS},
         'does_not_authorize_host_operations': True}
 
@@ -148,18 +178,18 @@ def observe_command(store, db, prompt, host_turn_digest, clock=None):
 
 
 def signature(store, db):
-    return [{k: e[k] for k in ('memory_id', 'state', 'tier', 'expires_at', 'field', 'category', 'choice', 'risk_flags')}
+    return [{k: e[k] for k in ('memory_id','decision_key', 'state', 'tier', 'expires_at', 'field', 'category', 'choice', 'risk_flags')}
             for e in records(store, db)]
 
 
 def match_candidate(store, db, candidate, task_id):
-    """Only explicit live project rules with identical field/category/option meaning apply.
+    """Only explicit live rules with matching decision/category/option identities apply.
 
-    The Agent must preserve stable field names; lexical retrieval never auto-confirms scope.
+    The Agent preserves stable decision keys; lexical retrieval never auto-confirms scope.
     Sensitive actions still go through the normal decision and host authorization paths.
     """
     rules = [e for e in records(store, db) if e['state'] == 'active' and e['tier'] == 'rule'
-             and e['task_id'] != task_id and field_key(e['field']) == field_key(candidate['field'])]
+             and e['task_id'] != task_id and e['decision_key']==decision_key(candidate)]
     if not rules:
         return None
     values = {rule_meaning(e) for e in rules}
@@ -170,11 +200,12 @@ def match_candidate(store, db, candidate, task_id):
         return {'status':'conflict','memory_ids':ids,'reason':
             'PROJECT_RULE_CHANGE_REQUESTED' if candidate.get('memory_intent')=='change' else 'PROJECT_RULE_SCOPE_UNCERTAIN'}
     rule = rules[-1]
-    options = [o for o in candidate['options'] if choice_value(o) == choice_value(rule['choice'])]
-    # Without explicit structured values, labels AND tradeoffs must agree: a reused label
+    options = [o for o in candidate['options'] if choice_identity(o) == choice_identity(rule['choice'])]
+    # Without structured values or stable option keys, labels AND tradeoffs must agree: a reused label
     # such as "Automatic" can otherwise hide an entirely different behavior.
     compatible = (len(options) == 1 and candidate['category'] == rule['category'] and
-        (('value' in options[0] and 'value' in rule['choice']) or
+        ((options[0].get('option_key') and options[0].get('option_key')==rule['choice'].get('option_key')) or
+         ('value' in options[0] and 'value' in rule['choice']) or
          options[0]['tradeoff'] == rule['choice']['tradeoff']))
     if not compatible:
         return {'status': 'conflict', 'memory_ids': ids, 'reason': 'PROJECT_RULE_SCOPE_OR_OPTIONS_CHANGED'}

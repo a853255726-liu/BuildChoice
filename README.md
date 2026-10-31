@@ -30,8 +30,6 @@ BuildChoice 在开发过程中结合用户需求和现有项目资料，识别�
 | 下次聊天继续参考 | 项目内检索已确认选择，区分普通参考、长期规则、归档与遗忘 |
 | 检查代码是否落实选择 | 关联实际文件和测试执行记录；输入变化后使旧通过结果失效 |
 
-候选是否发现仍依赖 Agent 和已读取资料。上述机制不保证发现所有重要选择，也不代表已证明漏问率或开发效率改善。
-
 ## 使用示例
 
 用户提出：
@@ -51,7 +49,7 @@ A. 自动保存
 B. 核对后保存（推荐）
    可以修改识别结果再保存，多一步操作但更容易避免错账。
 
-回复 A / B，也可以先讨论两种方案的区别。
+回复 A / B、“我选第二个”或完整方案名称，也可以先讨论两种方案的区别。
 ```
 
 用户选择后，Codex 按确定的方向继续开发。BuildChoice 保存选择及其来源，后续修改功能时可参考原决定，遇到新的冲突再与用户确认。
@@ -75,7 +73,7 @@ MCP 检查证据与当前开发依赖
 
 ## 名称与运行模式
 
-- **0.9.1** 是当前产品发布版本。
+- **0.10.0** 是当前产品发布版本。
 - **决策卡模式**在配置和技术文档中称为 V3，开启命令是 pilot；它是功能开关，不是产品版本号。
 - **Prompt-first** 是默认的澄清提示策略；完整决策卡流程需另行开启。
 - **.claude-plugin** 是本地插件市场的兼容目录，当前安装器通过 Codex app-server 注册和加载插件，不需要启动另一个编程助手。见[架构说明](docs/ARCHITECTURE.md#名称与兼容目录)。
@@ -91,16 +89,15 @@ cd BuildChoice
 python plugins/buildchoice/setup.py \
   --workspace /absolute/path/to/your-project \
   --runtime-root . \
+  --decision-mode pilot \
   --install
 
-python scripts/buildchoice_decisions.py pilot
 ```
 
 Windows PowerShell 可以使用单行命令：
 
 ```powershell
-python plugins/buildchoice/setup.py --workspace "C:\path\to\your-project" --runtime-root . --install
-python scripts/buildchoice_decisions.py pilot
+python plugins/buildchoice/setup.py --workspace "C:\path\to\your-project" --runtime-root . --decision-mode pilot --install
 ```
 
 安装器会准备本地运行依赖。Codex 的 Hook 信任由宿主按原有流程确认，不会被插件自动修改。
@@ -114,6 +111,17 @@ python scripts/buildchoice_decisions.py settings  # 查看决策卡设置
 python scripts/buildchoice_decisions.py pilot     # 开启决策卡
 python scripts/buildchoice_decisions.py off       # 关闭决策卡
 ```
+
+安装器将生成的 MCP、Hook 和项目配置保存在独立数据目录，源码 checkout 的配置文件保持不变。每个项目保存独立绑定和运行设置。
+
+查看已绑定项目，或切换到已有项目：
+
+~~~bash
+python plugins/buildchoice/setup.py --list-projects
+python plugins/buildchoice/setup.py --use-project /absolute/path/to/project
+~~~
+
+新连接优先按当前项目目录匹配绑定；显式切换后重新连接 MCP。已打开的连接继续使用原绑定。详见[项目使用与切换](docs/PROJECTS.md)。
 
 本地记录位于项目的 `.buildchoice_audit/ledger.sqlite3`，不会由插件自动上传。BuildChoice 不替代 Codex 的文件、网络和命令权限审批。
 

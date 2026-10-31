@@ -49,9 +49,13 @@ def probe_python(python, timeout):
     return _run_json([str(python),'-c',code],timeout)
 
 
-def probe_mcp(python, runtime, workspace, timeout):
+def probe_mcp(python, runtime, workspace, timeout, profile=None):
+    env={**os.environ,'BUILDCHOICE_WORKSPACE':str(workspace),'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
+    if profile:
+        env.update(BUILDCHOICE_SETTINGS=str(Path(profile)/'configs/buildchoice.json'),
+                   BUILDCHOICE_V3_SETTINGS=str(Path(profile)/'configs/decision_v3.json'))
     process=subprocess.Popen([str(python),str(runtime/'scripts/buildchoice_mcp.py'),'--native-settings'],
-        cwd=runtime,env={**os.environ,'BUILDCHOICE_WORKSPACE':str(workspace),'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'},
+        cwd=workspace,env=env,
         stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,encoding='utf-8',
         creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
     responses=queue.Queue()
@@ -120,7 +124,8 @@ def diagnose(home=None, workspace=None, host=False, timeout=10):
     binding_file=home/'binding.json'
     if binding_file.is_file():
         try:
-            value=json.loads(binding_file.read_text(encoding='utf-8'))
+            from .project_settings import selected_binding
+            value=selected_binding(home,workspace)
             if value.get('binding_version')!=1:raise ValueError('Binding version')
             for key in ('python','runtime_root','workspace'):
                 if not isinstance(value.get(key),str) or not Path(value[key]).is_absolute() or not Path(value[key]).exists():
@@ -157,7 +162,7 @@ def diagnose(home=None, workspace=None, host=False, timeout=10):
         '' if files_ready else '恢复 BuildChoice 运行时目录并重新初始化。')
     if ready and files_ready and valid_workspace:
         try:
-            result=probe_mcp(python,runtime,workspace,timeout)
+            result=probe_mcp(python,runtime,workspace,timeout,profile=locals().get('value',{}).get('profile_home'))
             good=result['server']=='buildchoice' and 'buildchoice_decision_status' in result['tools']
             add('local_mcp','pass' if good else 'fail',{'server':result['server'],'tool_count':len(result['tools'])},
                 '' if good else '核对绑定版本与运行时入口。')
@@ -167,7 +172,8 @@ def diagnose(home=None, workspace=None, host=False, timeout=10):
     add('host_plugin','unknown','尚未读取宿主插件状态。','加 --host 进行只读 plugin/read 与 hooks/list 检查。')
     add('hook_trust','unknown','没有独立确认 Hook 的启用与信任状态。','加 --host 检查；信任或修改操作由用户在宿主完成。')
     if host and ready and valid_workspace:
-        marketplaces=[runtime/'plugins/.claude-plugin/marketplace.json',runtime/'.claude-plugin/marketplace.json']
+        marketplaces=([Path(value['marketplace'])] if binding_file.is_file() and 'marketplace' in locals().get('value',{}) else [])+[
+            runtime/'plugins/.claude-plugin/marketplace.json',runtime/'.claude-plugin/marketplace.json']
         marketplace=next((path for path in marketplaces if path.is_file()),None)
         if marketplace is not None:
             try:

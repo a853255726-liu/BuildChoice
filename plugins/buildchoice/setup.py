@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 
 PACKAGE = Path(__file__).resolve().parent
 sys.path.insert(0,str(PACKAGE/'scripts'))
-from launch import data_home
+from launch import data_home,project_id,register,projects,select_project,write_json
 
 
 def sha(path):
@@ -90,41 +90,41 @@ def prepare_python(home, reuse=None):
     return python
 
 
-def initialize(workspace, *, bundle=None, runtime_root=None, reuse_python=None, home=None):
-    home = Path(home or data_home()).resolve()
-    workspace = Path(workspace).resolve(strict=True)
-    if not workspace.is_dir():
-        raise ValueError('Invalid workspace')
-    home.mkdir(parents=True,exist_ok=True)
-    old_binding = home/'binding.json'
-    if old_binding.exists():
-        old = json.loads(old_binding.read_text(encoding='utf-8'))
-        if old['workspace'] != str(workspace):
-            raise ValueError('Existing installation targets another workspace; select another data directory')
+def initialize(workspace, *, bundle=None, runtime_root=None, reuse_python=None, home=None, decision_mode=None):
+    home=Path(home or data_home()).resolve()
+    workspace=Path(workspace).resolve(strict=True)
+    if not workspace.is_dir():raise ValueError('Invalid workspace')
+    if decision_mode not in (None,'pilot','off'):raise ValueError('Invalid decision mode')
+    if home.is_relative_to(PACKAGE):raise ValueError('Choose a data directory outside the source package')
+    ident=project_id(workspace);profile=home/'projects'/ident
     if runtime_root:
-        root = Path(runtime_root).resolve(strict=True)
-        if bundle:
-            raise ValueError('Choose bundle or existing runtime, not both')
+        root=Path(runtime_root).resolve(strict=True)
+        if bundle:raise ValueError('Choose bundle or existing runtime, not both')
+        if home.is_relative_to(root):raise ValueError('Choose a data directory outside the runtime source')
     else:
-        if not bundle:
-            raise ValueError('A runtime bundle is required for a clean installation')
-        root = home/'runtime'
-        if not root.exists():
-            extract_bundle(bundle,root)
-        else:
-            # Do not replace a running installation or overwrite its configuration on a repeated setup.
-            manifest = json.loads((root/'runtime_manifest.json').read_text(encoding='utf-8'))
-            if manifest.get('bundle_version') != 1:
-                raise ValueError('Existing runtime is invalid')
+        if not bundle:raise ValueError('A runtime bundle is required for a clean installation')
+        root=profile/'runtime'
+        if not root.exists():extract_bundle(bundle,root)
+        elif json.loads((root/'runtime_manifest.json').read_text(encoding='utf-8')).get('bundle_version')!=1:
+            raise ValueError('Existing runtime is invalid')
     for member in ('scripts/buildchoice_mcp.py','scripts/buildchoice_hook.py','buildchoice/desktop/settings.py',
                    'docs/contracts/decision-v3.schema.json'):
-        if not (root/member).is_file():
-            raise ValueError('Runtime is missing '+member)
-    python = prepare_python(home,reuse_python)
-    value = {'binding_version':1,'python':str(python),'runtime_root':str(root),'workspace':str(workspace)}
-    temporary = home/'binding.tmp'
-    temporary.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    temporary.replace(old_binding)
+        if not (root/member).is_file():raise ValueError('Runtime is missing '+member)
+    home.mkdir(parents=True,exist_ok=True);profile.mkdir(parents=True,exist_ok=True)
+    python=prepare_python(home,reuse_python)
+    for name in ('buildchoice.json','decision_v3.json'):
+        target=profile/'configs'/name
+        if not target.exists():write_json(target,json.loads((root/'configs'/name).read_text(encoding='utf-8')))
+    if decision_mode is not None:
+        target=profile/'configs/decision_v3.json'
+        config=json.loads(target.read_text(encoding='utf-8'));config['mode']=decision_mode;write_json(target,config)
+    value={'binding_version':1,'python':str(python),'runtime_root':str(root),'workspace':str(workspace),
+           'project_id':ident,'profile_home':str(profile)}
+    sys.path.insert(0,str(PACKAGE))
+    from installation import prepare_installation
+    package,marketplace=prepare_installation(PACKAGE,value,home)
+    value.update(plugin_root=str(package),marketplace=str(marketplace))
+    register(home,value)
     return {'initialized':True,**value,'data_home':str(home),'hook_trust_modified':False}
 
 
@@ -137,15 +137,31 @@ def install(workspace, python, home):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workspace',type=Path,required=True)
+    parser.add_argument('--workspace',type=Path)
+    parser.add_argument('--list-projects',action='store_true')
+    parser.add_argument('--use-project',type=Path)
+    parser.add_argument('--decision-mode',choices=['pilot','off'])
     parser.add_argument('--bundle',type=Path)
     parser.add_argument('--runtime-root',type=Path)
     parser.add_argument('--reuse-python',type=Path)
     parser.add_argument('--data-home',type=Path)
     parser.add_argument('--install',action='store_true')
     args = parser.parse_args()
-    report = initialize(args.workspace,bundle=args.bundle,runtime_root=args.runtime_root,
-        reuse_python=args.reuse_python,home=args.data_home)
+    if args.list_projects:
+        if args.workspace or args.use_project or args.install:parser.error('--list-projects is read-only')
+        print(json.dumps(projects(args.data_home or data_home()),ensure_ascii=False,indent=2))
+        raise SystemExit(0)
+    if args.use_project:
+        if args.workspace or args.bundle or args.runtime_root:parser.error('Choose a new setup or an existing project')
+        value=select_project(args.use_project,args.data_home)
+        if args.decision_mode:
+            if not value.get('profile_home'):parser.error('Reinitialize this legacy project before changing its settings')
+            target=Path(value['profile_home'])/'configs/decision_v3.json'
+            config=json.loads(target.read_text(encoding='utf-8'));config['mode']=args.decision_mode;write_json(target,config)
+        report={'selected':True,**value,'data_home':str(args.data_home or data_home()),'requires_mcp_reconnect':True}
+    else:
+        if not args.workspace:parser.error('--workspace is required for initialization')
+        report=initialize(args.workspace,bundle=args.bundle,runtime_root=args.runtime_root,
+            reuse_python=args.reuse_python,home=args.data_home,decision_mode=args.decision_mode)
     print(json.dumps(report,ensure_ascii=False,indent=2))
-    if args.install:
-        install(args.workspace,report['python'],report['data_home'])
+    if args.install:install(report['workspace'],report['python'],report['data_home'])

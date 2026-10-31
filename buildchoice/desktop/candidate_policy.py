@@ -17,10 +17,14 @@ def field_key(field):
     return re.sub(r'[\W_]+', '', unicodedata.normalize('NFKC', field).casefold())
 
 
+def candidate_key(candidate):
+    return 'key:'+candidate['decision_key'] if candidate.get('decision_key') else field_key(candidate['field'])
+
+
 def deduplicate(candidates):
     result = {}; order = []
     for original in candidates:
-        key = field_key(original['field'])
+        key = candidate_key(original)
         if not key: raise ValueError('Field needs a meaningful name')
         if key not in result:
             result[key] = deepcopy(original)
@@ -28,6 +32,7 @@ def deduplicate(candidates):
             order.append(key)
             continue
         prior = result[key]
+        if prior['category']!=original['category']:raise ValueError('Same decision key has conflicting categories')
         if prior.get('memory_intent','uncertain')!=original.get('memory_intent','uncertain'):
             prior['memory_intent']='uncertain'
         if prior['options'] != original['options']:

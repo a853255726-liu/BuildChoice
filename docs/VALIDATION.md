@@ -46,4 +46,4 @@ python checks/run_receipt_demo.py --out receipt-results.json
 
 [GitHub Actions](https://github.com/a853255726-liu/BuildChoice/actions) 在 PR、main 推送或手动触发时运行检查，包括 Windows 路径边界和 Linux 集成/浏览器作业。查看对应提交的作业结果、跳过项及产物；不同提交或不同环境的结果不能直接替代本次检查。
 
-单元和协议测试使用模拟 Hook，浏览器测试使用合成识别数据。它们验证实现契约和受控行为，不证明真实 Codex 会话已加载插件、实际候选发现质量或真实相机/OCR 链路有效。真实宿主检查与产品评测方法见[端到端测试](END_TO_END_TESTING.md)。
+测试入口与夹具保存在 checks 和 examples/receipt_review。安装及会话操作步骤见[端到端测试](END_TO_END_TESTING.md)。

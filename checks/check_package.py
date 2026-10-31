@@ -45,7 +45,7 @@ for result in archives:
         if 'core' in path.name:
             assert archive.read('LICENSE')==(root/'LICENSE').read_bytes()
             manifest=json.loads(archive.read('runtime_manifest.json'))
-            assert manifest['package_version']==VERSION=='0.9.1'
+            assert manifest['package_version']==VERSION=='0.10.0'
             assert not any('audit_web' in name or name.endswith(('.html','.css','.js')) for name in archive.namelist())
             assert 'scripts/buildchoice_audit.py' not in archive.namelist()
             assert {'scripts/buildchoice_run_verification.py','scripts/buildchoice_test_worker.py',

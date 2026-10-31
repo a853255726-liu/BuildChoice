@@ -12,7 +12,14 @@ import uuid
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'checks'))
-from test_guidance import candidate
+from test_guidance import candidate as base_candidate
+
+
+def candidate():
+    value=base_candidate();value['decision_key']='profile.visibility'
+    for option in value['options']:
+        option['option_key']='profile.private' if option['id']=='A' else 'profile.public'
+    return value
 
 workspace=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir())).resolve()/('buildchoice-mcp-'+uuid.uuid4().hex)
 workspace.mkdir()
@@ -92,7 +99,7 @@ try:
     retried=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert retried==active
-    confirmed=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,'turn_id':'2','prompt':'A\r\n'}))[0]
+    confirmed=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,'turn_id':'2','prompt':'我选第一个方案\r\n'}))[0]
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert status['decisions'][0]['status']=='PROCEED'
     assert status['confirmation_history'][0]['choice_id']=='A'

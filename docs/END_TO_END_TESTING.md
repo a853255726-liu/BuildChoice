@@ -1,6 +1,6 @@
 # BuildChoice · 端到端测试
 
-本指南面向贡献者和部署验证人员。工程集成、真实 Codex 会话和产品效果分别检查，结果应标明提交版本、环境与测试范围。
+本指南面向贡献者和部署验证人员。按安装、对话、实现和项目切换检查完整使用流程。
 
 ## 工程集成
 
@@ -21,23 +21,8 @@
 
 记录 Codex 版本/模型、BuildChoice 提交 SHA、输入需求、卡片文本、Hook 关联证据、行为用例、退出码及异常。公开材料应移除凭据、个人路径和会话敏感内容。
 
-## 产品效果评测
-
-使用可公开复现的完整任务文本。在测试前固定任务、必要决策及“不应追问”的对照要求，由不知道实验组别的评审独立标注并处理分歧。对不同工具使用相同任务、环境和行为测试。
-
-建议同时报告：
-
-- 必要决策的及时发现率、提问精确率与多余阻塞次数。
-- 每个配对任务增加的时间、交互轮次和工具调用数。
-- 已确认选择与实现的一致率，以及受控错误实现的检出率和误报率。
-- 无测试、超时、未回答和无法判定的情况。
-
-以原始任务为独立采样单位，重复运行单独标明，不将多次运行算成多个独立项目。行为验收使用独立预先编写的断言，并保留正确和错误实现；Agent 自己生成并通过的测试不能单独证明断言充分。
-
 ## 相关设计参考
 
 - [GitHub Spec Kit clarify](https://github.com/github/spec-kit/blob/main/templates/commands/clarify.md)：按维度检查未明确的选择。
 - [GSD quick discussion](https://github.com/gsd-build/get-shit-done/blob/main/get-shit-done/workflows/quick.md)：围绕用户可见行为讨论取舍。
 - [OpenSpec workflows](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md)：关联需求与验证证据。
-
-这些参考提供设计思路，不构成本项目效果已经得到独立验证的证据。

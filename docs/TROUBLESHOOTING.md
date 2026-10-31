@@ -18,7 +18,7 @@ python scripts/buildchoice_doctor.py --host --json
 | Hook 未启用或信任未知 | 在 Codex 按正常流程审阅当前 Hook；不要从测试回调推断真实会话已就绪 |
 | 决策卡不开启 | 查看决策卡设置，执行 buildchoice_decisions.py pilot；同时检查全局模式不是 off |
 | 工具列表没有刷新 | 更新后重连 MCP 或重启 Codex；工具列表变更通知依赖宿主支持 |
-| 安装绑定到另一项目 | 使用该项目的绑定，或以独立 --data-home 初始化另一个项目 |
+| 安装绑定到另一项目 | 使用 setup.py --list-projects 查看，再以 --use-project 路径选择对应绑定并重连 MCP |
 | 修改代码后旧结果失效 | 重新运行相关行为测试，再要求 Codex 验证当前选择 |
 
 安装路径和参数见[README](../README.md#安装)。独立数据目录可通过 doctor 的 --data-home 指定；不要将其他项目的账本覆盖到当前项目。

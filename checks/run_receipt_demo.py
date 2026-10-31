@@ -33,7 +33,7 @@ def main():
             detail = log_file.read_text(encoding='utf-8', errors='replace')[-8000:] if log_file.exists() else 'No worker log'
             raise AssertionError((summary, receipt['execution_status'], detail))
         assert result['applicability']=='current',result['stale_reasons']
-    document={'scope':'Real headless browser/localStorage behavior; synthetic confirmation fixture, not actual host or OCR/platform efficacy.',
+    document={'scope':'Headless browser and localStorage behavior with synthetic confirmation fixtures.',
               'results':results}
     text=json.dumps(document,ensure_ascii=False,indent=2)
     if args.out:args.out.parent.mkdir(parents=True,exist_ok=True);args.out.write_text(text+'\n',encoding='utf-8')

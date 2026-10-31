@@ -22,7 +22,7 @@ def render(card, position=1, total=1, verified=True):
         lines.append(option['id'] + '. ' + option['label'] + ('（推荐）' if recommended else '') + '：' + option['tradeoff'])
     if card['recommendation']:
         lines.append('建议 ' + card['recommendation']['option_id'] + '，因为' + card['recommendation']['reason'])
-    lines.append('回复 ' + ' / '.join(o['id'] for o in card['options']) + '；不确定可回复“解释一下”，也可以说明自己的方案。')
+    lines.append('可回复“我选第二个”、完整方案名称，或 ' + ' / '.join(o['id'] for o in card['options']) + '；需要讨论可回复“解释一下”。')
     if card['allow_defer']:
         lines.append('可回复“暂缓”，在依赖此选择的步骤前重新确认。')
     elif card['blocked_steps']:

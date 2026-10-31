@@ -5,7 +5,7 @@ description: 在 BuildChoice V3 pilot 已开启的编程任务中，识别需要
 
 # 关键产品决策引导
 
-提示版本：`candidate-extractor-v3.5`。使用用户指定的产品目标和当前任务范围；本技能不扩大授权，不改变宿主权限审批。
+提示版本：`candidate-extractor-v3.6`。使用用户指定的产品目标和当前任务范围；本技能不扩大授权，不改变宿主权限审批。
 
 ## 先确认是否适用
 
@@ -30,6 +30,8 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 ## 同次记录覆盖依据
 
 候选可带 memory_intent：确认本轮仍沿用同范围规则时填 reuse；用户要求改变行为时填 change；范围不清填 uncertain（缺省亦为 uncertain）。不能仅因字段同名就填 reuse，用户要求修改时必须提示与旧规则的关系。该字段是 Agent 判断，服务端不声称证明语义适用。
+
+同一产品选择使用稳定的 decision_key，例如 receipt.saving.policy；已有记忆返回该键时优先沿用，不因改写问题或字段显示名称而另造标识。选项可提供 option_key，例如 review.before.save，显示名称和 A/B 顺序变化时保持语义相同的键。产品规则或显式 value 改变时不能只保留旧键来复用确认，应重新核实。模糊检索只用于找相关记忆，不作为自动沿用依据。
 
 仅对相关维度附简短记录：data_storage（数据与保存）、access_visibility（权限与可见性）、automation_confirmation（自动化与确认）、external_cost（外部依赖与费用）、failure_recovery（失败与恢复）、scope_delivery（范围与交付）。不要求填满六项。
 
@@ -58,9 +60,9 @@ task_text 保留实际用户正文；服务端只统一传输换行符和首尾�
 
 ## 接收回答与变更
 
-用户可以回复 A/B、说“不确定”、要求解释或给出自己的方案。只有真实 Hook 捕获且匹配当前卡号、版本和会话的严格选项回复才会成为 `user_message_observed`。
+用户可以回复 A/B、“我选第二个”、完整方案名称、“按你推荐的来”，也可以要求解释或提出新方案。只有真实 Hook 捕获、且能唯一对应当前卡片选项的明确表达才会成为 `user_message_observed`；会话、版本和有效期限制不变。
 
-先查询 `buildchoice_decision_status`，不能通过复述用户意图把记录写成 verified。自由回答先解释或归纳，需要落为明确选项时请用户再次明确回复。对解释请求继续说明取舍；不确定时保持待答。允许暂缓的卡可由用户明确回复“暂缓”。
+先查询 `buildchoice_decision_status`，不能通过复述用户意图把记录写成 verified。无法唯一匹配的自由回答先解释或归纳，提示用户给出完整方案名称或序号；不要要求所有人只回复字母。对解释请求继续说明取舍；不确定、否定、引用或混合指令保持待答。允许暂缓的卡可由用户明确回复“暂缓”。
 
 用户改变选择时调用 `buildchoice_decision_prepare_revision`，追加新版本和影响说明，再激活、展示和等待新版本的明确回答。旧确认保留追溯；新版本生效后复核受影响实现。
 

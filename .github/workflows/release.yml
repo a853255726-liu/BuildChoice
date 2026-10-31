@@ -44,6 +44,9 @@ jobs:
         run: |
           version=$(python -c "from buildchoice.desktop.bundle import VERSION; print(VERSION)")
           tag="v$version"
+          if gh release view v0.9.1 > /dev/null 2>&1; then
+            gh release edit v0.9.1 --notes-file docs/releases/v0.9.1.md
+          fi
           if gh release view "$tag" > /dev/null 2>&1; then
             echo "Release $tag already exists; preserving its tag and assets."
             exit 0

@@ -14,14 +14,10 @@ BuildChoice 帮助 AI 编程用户掌握影响产品行为的重要实现选择�
 从插件目录执行，`--workspace` 指向已有项目目录：
 
 ```bash
-python setup.py --workspace /absolute/path/to/project --runtime-root /absolute/path/to/BuildChoice --install
+python setup.py --workspace /absolute/path/to/project --runtime-root /absolute/path/to/BuildChoice --decision-mode pilot --install
 ```
 
-安装后在仓库根目录启用决策卡：
-
-```bash
-python scripts/buildchoice_decisions.py pilot
-```
+安装会在独立数据目录生成配置，源码保持不变。可用 setup.py --list-projects 查看项目，--use-project 路径切换活动绑定；切换后重连 MCP。项目目录可自动匹配已登记的绑定。
 
 默认采用 Prompt-first，决策卡独立开启。安装器会配置本地依赖，Hook 信任由 Codex 正常审批。决策历史保存在项目的 `.buildchoice_audit` 目录，不自动上传。
 

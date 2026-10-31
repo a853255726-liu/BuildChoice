@@ -12,6 +12,8 @@ def validate_options(options, recommended):
     if len(ids)!=len(set(ids)):raise ValueError('Duplicate option ID')
     if recommended is not None and recommended not in ids:
         raise ValueError('Recommendation is not an offered option')
+    keys=[option['option_key'] for option in options if option.get('option_key')]
+    if len(keys)!=len(set(keys)):raise ValueError('Duplicate stable option key')
 
 
 def validate(kind, value):

@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from .common import ROOT, WORKSPACE
 
-SETTINGS = ROOT / 'configs/buildchoice.json'
+SETTINGS = Path(os.environ.get('BUILDCHOICE_SETTINGS', ROOT / 'configs/buildchoice.json'))
 DEFAULT = {'config_version': 1, 'mode': 'prompt'}
 
 
