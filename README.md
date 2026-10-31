@@ -109,5 +109,6 @@ python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project s
 - [决策落实验证与示例](docs/DECISION_VERIFICATION.md)
 - [名称与升级说明](docs/UPGRADING.md)
 - [验证方法与范围](docs/VALIDATION.md)
+- [集成、真实 Codex 宿主验收与产品效果测试](docs/END_TO_END_TESTING.md)
 - [架构](docs/ARCHITECTURE.md)
 - [MCP 与数据接口](docs/API.md)
