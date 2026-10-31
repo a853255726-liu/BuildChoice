@@ -45,6 +45,9 @@ jobs:
       - name: Build distributable artifacts
         run: python scripts/build_distribution.py
       - name: Headless browser positive and negative examples
+        # CI Linux runners restrict Chromium namespaces; this setting is for synthetic fixture tests only.
+        env:
+          BUILDCHOICE_TEST_BROWSER_NO_SANDBOX: '1'
         run: python checks/run_receipt_demo.py --out receipt-results.json
       - name: Retain synthetic browser evidence
         if: always()
