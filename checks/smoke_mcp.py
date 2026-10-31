@@ -79,9 +79,9 @@ try:
         'refs':[{'source_id':source['id'],'quote':'Only the owner'}]})
     assert call('buildchoice_audit_report',{'session':session['id']})['report']['summary']['decisions']==1
 
-    event={'hook_event_name':'UserPromptSubmit','cwd':str(workspace),'session_id':'mcp-smoke','turn_id':'1','prompt':'给现有项目加登录'}
+    event={'hook_event_name':'UserPromptSubmit','cwd':str(workspace),'session_id':'mcp-smoke','turn_id':'1','prompt':'给现有项目加登录\r\n'}
     handle=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook(event))[0]
-    response=call('buildchoice_screen_candidates',{'request':{'task_text':event['prompt'],'phase':'before_implementation',
+    response=call('buildchoice_screen_candidates',{'request':{'task_text':event['prompt'].strip('\r\n'),'phase':'before_implementation',
         'next_step':'Implement access rules','candidates':[candidate()],'session_handle':handle,'idempotency_key':'screen',
         'coverage':[{'dimension':'access_visibility','status':'candidate','reason':'Access rule needs a choice.','candidate_ids':['visibility']}]}})
     item=response['decisions'][0]
@@ -92,7 +92,7 @@ try:
     retried=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert retried==active
-    confirmed=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,'turn_id':'2','prompt':'A'}))[0]
+    confirmed=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,'turn_id':'2','prompt':'A\r\n'}))[0]
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert status['decisions'][0]['status']=='PROCEED'
     assert status['confirmation_history'][0]['choice_id']=='A'
@@ -101,6 +101,12 @@ try:
         'task_id':response['task_id'],'decision_id':item['decision_id'],'revision':1,
         'idempotency_key':'activate','session_handle':confirmed}})
     assert old_activation.get('isError'),old_activation
+    invalid_revision=candidate();invalid_revision['options'][1]['id']='A'
+    rejected_revision=send('tools/call',{'name':'buildchoice_decision_prepare_revision','arguments':{
+        'task_id':response['task_id'],'decision_id':item['decision_id'],'revision':1,'candidate':invalid_revision,
+        'reason':'Invalid duplicate option IDs must not be saved','session_handle':confirmed}})
+    assert rejected_revision.get('isError'),rejected_revision
+    assert call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})['decisions'][0]['revision']==1
 
     (workspace/'profile.py').write_text('visibility = "private"\n',encoding='utf-8')
     linked=call('buildchoice_link_implementation',{'task_id':response['task_id'],'decision_id':item['decision_id'],

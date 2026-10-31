@@ -44,7 +44,7 @@ for result in archives:
         assert not any('/backends/' in name or '/predictor/' in name or 'requirements-model' in name for name in archive.namelist())
         if 'core' in path.name:
             manifest=json.loads(archive.read('runtime_manifest.json'))
-            assert manifest['package_version']==VERSION=='0.8.2'
+            assert manifest['package_version']==VERSION=='0.8.3'
             assert {'scripts/buildchoice_run_verification.py','scripts/buildchoice_test_worker.py',
                 'docs/contracts/acceptance-v1.schema.json','docs/contracts/verification-v1.schema.json'}<=set(archive.namelist())
             assert not any('model' in name for name in archive.namelist())

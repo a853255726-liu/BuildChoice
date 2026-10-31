@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 from buildchoice.desktop.common import ROOT, file_sha
 
-VERSION = '0.8.2'
+VERSION = '0.8.3'
 
 
 def build_core_runtime(destination, root=ROOT):

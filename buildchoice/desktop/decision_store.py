@@ -10,7 +10,8 @@ import secrets
 import sqlite3
 import time
 import uuid
-from contextlib import closing
+from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from .audit import Ledger, encode, now
 
@@ -23,18 +24,53 @@ def message_digest(value):
     return hashlib.sha256(value.encode('utf-8')).hexdigest()
 
 
+def canonical_prompt(value):
+    """Normalize transport line endings/outer empty lines, never body spaces or indentation."""
+    return value.replace('\r\n','\n').replace('\r','\n').strip('\n')
+
+
+def prompt_digests(value):
+    text=canonical_prompt(value)
+    windows=text.replace('\n','\r\n')
+    # Match pre-0.8.3 hashes with the desktop's single terminal newline too.
+    return {message_digest(v) for v in (value,text,text+'\n',windows,windows+'\r\n')}
+
+
+def prompt_matches(digest, value):
+    return digest in prompt_digests(value)
+
+
 class DecisionStore:
     def __init__(self, workspace, database=None, ttl=900):
         self.ledger = Ledger(workspace, database)
         self.workspace = self.ledger.workspace
         self.database = self.ledger.database
         self.ttl = ttl
+        self._transaction = ContextVar('buildchoice_transaction',default=None)
         self.migrate()
 
+    @contextmanager
     def connect(self):
-        db = self.ledger.connect()
-        db.execute('PRAGMA foreign_keys=ON')
-        return db
+        active=self._transaction.get()
+        if active is not None:
+            yield active
+        else:
+            with self.ledger.connect() as db:
+                db.execute('PRAGMA foreign_keys=ON')
+                yield db
+
+    @staticmethod
+    def begin(db):
+        if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
+
+    @contextmanager
+    def transaction(self):
+        """One screen owns its task, context claim, items, events and response atomically."""
+        with self.connect() as db:
+            self.begin(db)
+            token=self._transaction.set(db)
+            try:yield db
+            finally:self._transaction.reset(token)
 
     def migrate(self):
         with self.connect() as db:
@@ -107,13 +143,13 @@ class DecisionStore:
         if not isinstance(cwd,str) or not Path(cwd).resolve().is_relative_to(self.workspace): return None
         if not all(isinstance(v,str) and v for v in (session,turn,prompt)) or len(prompt)>50000:
             return {'status':'unverified','reason':'MISSING_OR_OVERSIZED_HOST_IDENTITY'}
-        session_hash=message_digest(session); turn_hash=message_digest(turn); prompt_hash=message_digest(prompt)
+        session_hash=message_digest(session); turn_hash=message_digest(turn); prompt_hash=message_digest(canonical_prompt(prompt))
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             previous=db.execute('SELECT * FROM decision_v3_contexts WHERE workspace=? AND host_session_digest=? AND host_turn_digest=?',
                                 (str(self.workspace),session_hash,turn_hash)).fetchone()
             if previous:
-                if previous['prompt_digest']!=prompt_hash: raise ValueError('Host turn reused with different input')
+                if not prompt_matches(previous['prompt_digest'],prompt): raise ValueError('Host turn reused with different input')
                 if previous['expires']<time.time(): return {'status':'unverified','reason':'EXPIRED_HOST_CONTEXT'}
                 return {'status':'observed','session_handle':previous['handle'],**json.loads(previous['outcome_json'])}
             db.execute('UPDATE decision_v3_contexts SET expires=? WHERE workspace=? AND host_session_digest=? AND host_turn_digest<>?',
@@ -167,7 +203,7 @@ class DecisionStore:
 
     def task(self, task_id, owner, handle=None):
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             row=db.execute('SELECT * FROM decision_v3_tasks WHERE id=?',(task_id,)).fetchone()
             if row is None or row['workspace']!=str(self.workspace): raise ValueError('Unknown task in this workspace')
             ctx=self.context(db,handle,owner,claim=True)
@@ -183,48 +219,60 @@ class DecisionStore:
     def open_task(self, task_text, phase, owner, handle=None, task_id=None):
         if task_id:
             row=self.task(task_id,owner,handle)
-            if row['task_digest']!=message_digest(task_text): raise ValueError('Original task changed; start a new task scope')
+            if not prompt_matches(row['task_digest'],task_text): raise ValueError('Original task changed; start a new task scope')
             return row
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             ctx=self.context(db,handle,owner,claim=True)
             if ctx:
                 if ctx['task_id']:
                     row=db.execute('SELECT * FROM decision_v3_tasks WHERE id=?',(ctx['task_id'],)).fetchone()
-                    if row and row['task_digest']==message_digest(task_text): return dict(row)
+                    if row and prompt_matches(row['task_digest'],task_text): return dict(row)
                     # A non-option reply may be a new request. The Agent signals that
                     # by opening a new scope with this exact observed message. Strict
                     # choices/defer replies remain bound to their original task.
                     outcome=json.loads(ctx['outcome_json'])
                     if (outcome.get('confirmation_status')!='awaiting_user' or
-                            ctx['prompt_digest']!=message_digest(task_text)):
+                            not prompt_matches(ctx['prompt_digest'],task_text)):
                         raise ValueError('Hook context cannot be rebound to another task')
                     active=db.execute('SELECT a.* FROM decision_v3_active a JOIN decision_v3_items i ON i.id=a.decision_id AND i.revision=a.revision '
                         'WHERE a.workspace=? AND a.host_session_digest=? AND i.task_id=?',
                         (str(self.workspace),ctx['host_session_digest'],ctx['task_id'])).fetchone()
                     if active:self.release_active(db,active,'NEW_TASK_SCOPE')
-                if ctx['prompt_digest']!=message_digest(task_text): raise ValueError('Task does not match actual observed user input')
+                if not prompt_matches(ctx['prompt_digest'],task_text): raise ValueError('Task does not match actual observed user input')
             else:
-                existing=db.execute('SELECT * FROM decision_v3_tasks WHERE owner=? AND task_digest=? AND host_session_digest=? ORDER BY created DESC LIMIT 1',
-                                    (owner,message_digest(task_text),'')).fetchone()
+                digests=sorted(prompt_digests(task_text))
+                existing=db.execute('SELECT * FROM decision_v3_tasks WHERE owner=? AND workspace=? AND task_digest IN ('+
+                    ','.join('?' for _ in digests)+') AND host_session_digest=? ORDER BY created DESC LIMIT 1',
+                    (owner,str(self.workspace),*digests,'')).fetchone()
                 if existing:return dict(existing)
             ident='task-'+uuid.uuid4().hex
             row={'id':ident,'workspace':str(self.workspace),'host_session_digest':ctx['host_session_digest'] if ctx else '',
-                 'task_digest':message_digest(task_text),'owner':owner,'phase':phase,
+                 'task_digest':message_digest(canonical_prompt(task_text)),'owner':owner,'phase':phase,
                  'binding_status':'hook_observed' if ctx else 'unverified','created':now()}
             db.execute('INSERT INTO decision_v3_tasks VALUES(:id,:workspace,:host_session_digest,:task_digest,:owner,:phase,:binding_status,:created)',row)
             if ctx: db.execute('UPDATE decision_v3_contexts SET task_id=? WHERE handle=?',(ident,handle))
             self.event(db,ident,'TASK_REGISTERED',{'binding_status':row['binding_status'],'task_digest':row['task_digest']})
             return row
 
-    def begin_operation(self, task_id, operation, key, given):
+    def begin_operation(self, task_id, operation, key, given, legacy_given=None):
         value=fingerprint(given)
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             row=db.execute('SELECT * FROM decision_v3_operations WHERE task_id=? AND operation=? AND key=?',(task_id,operation,key)).fetchone()
             if row:
-                if row['input_digest']!=value: raise ValueError('Idempotency key reused with changed input')
-                if row['response_json'] is None: raise ValueError('Operation already in progress; inspect status before retrying')
+                acceptable={value}
+                if legacy_given is not None:acceptable.add(fingerprint(legacy_given))
+                if row['input_digest'] not in acceptable: raise ValueError('Idempotency key reused with changed input')
+                if row['response_json'] is None:
+                    if operation!='screen' or self._transaction.get() is None:
+                        raise ValueError('Operation already in progress; inspect status before retrying')
+                    # BEGIN IMMEDIATE excludes another active screen writer. A visible
+                    # NULL is therefore a committed marker left by the older protocol.
+                    db.execute('UPDATE decision_v3_operations SET input_digest=? WHERE task_id=? AND operation=? AND key=?',
+                               (value,task_id,operation,key))
+                    self.event(db,task_id,'SCREEN_OPERATION_RECOVERED',{'idempotency_key':key})
+                    return None
                 return json.loads(row['response_json'])
             db.execute('INSERT INTO decision_v3_operations VALUES(?,?,?,?,NULL)',(task_id,operation,key,value))
         return None
@@ -261,7 +309,7 @@ class DecisionStore:
         state={'ASK_NOW':'screened','INSPECT':'inspecting','DEFER':'deferred','PROCEED':'screened'}[result['status']]
         if existing and result['confirmation_status']=='user_message_observed' and result['status']=='PROCEED' and revision==existing['revision']:state='confirmed'
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             if existing and revision!=existing['revision']:
                 db.execute("UPDATE decision_v3_items SET state='superseded' WHERE id=? AND revision=?",(ident,existing['revision']))
                 db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE decision_id=?',(ident,))
@@ -273,7 +321,7 @@ class DecisionStore:
         from .decision_cards import render
         given={'decision_id':decision_id,'revision':revision}
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             prior=db.execute('SELECT * FROM decision_v3_operations WHERE task_id=? AND operation=? AND key=?',(task['id'],'activate',key)).fetchone()
             if prior:
                 if prior['input_digest']!=fingerprint(given):raise ValueError('Idempotency key reused with changed input')
@@ -313,7 +361,7 @@ class DecisionStore:
         from .decision_cards import make_card
         from .candidate_policy import field_key
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            self.begin(db)
             row=db.execute('SELECT * FROM decision_v3_items WHERE id=? AND task_id=? AND revision=?',(decision_id,task['id'],revision)).fetchone()
             latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(decision_id,)).fetchone()[0]
             if row is None or revision!=latest:raise ValueError('Revision source is stale')

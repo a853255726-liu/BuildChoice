@@ -6,7 +6,7 @@ from .candidate_policy import deduplicate, route, sort_key, field_key
 from .decision_cards import make_card
 from .decision_contracts import validate
 from .decision_settings import read as read_settings
-from .decision_store import DecisionStore
+from .decision_store import DecisionStore,canonical_prompt,fingerprint
 
 
 class DecisionService:
@@ -75,11 +75,53 @@ class DecisionService:
         validate('ScreenRequest',request)
         store=self.store()
         candidates=deduplicate(request['candidates']);candidates.sort(key=sort_key)
+        with store.transaction():
+            return self._screen(store,request,candidates)
+
+    def screen_inputs(self, store, request):
+        """Snapshot the current bounded files, including coverage and unread resources."""
+        files={};sources={}
+        def file_state(locator):
+            if locator not in files:
+                try:
+                    path=store.ledger.path(locator)
+                    with path.open('rb') as stream:raw=stream.read(MAX_BYTES+1)
+                    files[locator]={'sha256':hashlib.sha256(raw).hexdigest(),
+                        'oversized':len(raw)>MAX_BYTES,'bytes':path.stat().st_size}
+                except (OSError,ValueError):files[locator]={'unavailable':True}
+            return files[locator]
+        ids={ref['source_id'] for entry in [*request['candidates'],*request.get('coverage',[])]
+             for ref in entry.get('evidence_refs',[])}
+        with store.connect() as db:
+            for source_id in sorted(ids):
+                row=db.execute('SELECT s.* FROM sources s JOIN sessions t ON t.id=s.session WHERE s.id=? AND t.workspace=?',
+                    (source_id,str(store.workspace))).fetchone()
+                sources[source_id]=None if row is None else {'locator':row['locator'],'digest':row['digest'],
+                    'origin':row['origin'],'file':file_state(row['locator'])}
+        for resource in request.get('resources',[]):file_state(resource['path'])
+        return {'sources':sources,'files':files}
+
+    def screen_snapshot(self, store, task_id, inputs):
+        items=[{key:row[key] for key in ('id','revision','candidate_json','routing_json')} |
+               {'confirmation':store.confirmation(row)} for row in store.items(task_id)]
+        with store.connect() as db:
+            latest=db.execute("SELECT data_json FROM decision_v3_events WHERE task_id=? AND event_type='COVERAGE_RECORDED' ORDER BY id DESC LIMIT 1",
+                (task_id,)).fetchone()
+        return fingerprint({'inputs':inputs,'items':items,'coverage':json.loads(latest[0]) if latest else None})
+
+    def _screen(self, store, request, candidates):
         task=store.open_task(request['task_text'],request['phase'],self.owner,request.get('session_handle'),request.get('task_id'))
         if task['binding_status']=='hook_observed' and not request.get('session_handle'):
             raise ValueError('Observed tasks require a fresh Hook context for screening')
-        cached=store.begin_operation(task['id'],'screen',request['idempotency_key'],request)
+        given={k:v for k,v in request.items() if k not in ('task_id','session_handle')}
+        given['task_text']=canonical_prompt(request['task_text'])
+        cached=store.begin_operation(task['id'],'screen',request['idempotency_key'],given,legacy_given=request)
+        inputs=self.screen_inputs(store,request)
         if cached is not None:
+            if (cached.get('screen_cache_version')!=1 or
+                    cached.get('snapshot')!=self.screen_snapshot(store,task['id'],inputs)):
+                raise ValueError('CACHED_SCREEN_STALE: read current sources/status and screen with a new idempotency key')
+            cached=cached['response']
             # Historical responses remain on disk, but retired fields leave the live API.
             cached.pop('model_diagnostics',None)
             cached.setdefault('coverage',{'reported':False,'provenance':'agent_declared','entries':[],
@@ -119,7 +161,10 @@ class DecisionService:
                   'decisions':decisions,'coverage':coverage,'does_not_authorize_host_operations':True}
         validate('ScreenResponse',response)
         with store.connect() as db:store.event(db,task['id'],'COVERAGE_RECORDED',coverage)
-        store.finish_operation(task['id'],'screen',request['idempotency_key'],response)
+        after=self.screen_inputs(store,request)
+        if inputs!=after:raise ValueError('SCREEN_INPUT_CHANGED_DURING_EVALUATION: re-read sources and retry')
+        store.finish_operation(task['id'],'screen',request['idempotency_key'],{
+            'screen_cache_version':1,'snapshot':self.screen_snapshot(store,task['id'],after),'response':response})
         return response
 
     def activate(self, task_id, decision_id, revision, idempotency_key, session_handle=None):
