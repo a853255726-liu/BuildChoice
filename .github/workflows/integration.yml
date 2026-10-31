@@ -1,0 +1,60 @@
+name: BuildChoice integration checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-and-browser:
+    name: Unit, MCP, packaging and browser behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+          python -m playwright install --with-deps chromium
+      - name: Select installed headless browser
+        run: |
+          python - <<'PY'
+          import os
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              executable = playwright.chromium.executable_path
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              handle.write('BUILDCHOICE_TEST_BROWSER=' + executable + '\n')
+          print('Browser executable discovered')
+          PY
+      - name: Unit and discovery asset regression
+        run: python -m unittest discover -s checks -v
+      - name: Real MCP STDIO and synthetic Hook integration
+        run: python checks/smoke_mcp.py
+      - name: Source / packaged plugin integration
+        run: python checks/check_package.py
+      - name: Build distributable artifacts
+        run: python scripts/build_distribution.py
+      - name: Headless browser positive and negative examples
+        run: python checks/run_receipt_demo.py --out receipt-results.json
+      - name: Retain synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildchoice-browser-evidence
+          path: receipt-results.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+# These checks use local fixtures and synthetic Hook events. They do not
+# establish that an actual Codex user session loaded/trusted the plugin,
+# nor do they evaluate discovery quality on independent real prompts.
