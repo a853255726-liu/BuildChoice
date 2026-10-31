@@ -23,7 +23,7 @@ setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(setup)
 
 class ProjectInstallationTests(unittest.TestCase):
     def setUp(self):
-        base=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir()))
+        base=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir())).resolve()
         self.root=base/('buildchoice-install-'+uuid.uuid4().hex);self.root.mkdir()
         self.home=self.root/'home';self.a=self.root/'project-a';self.b=self.root/'project-b'
         self.a.mkdir();self.b.mkdir()
@@ -77,6 +77,17 @@ class ProjectInstallationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             setup.initialize(self.a,runtime_root=ROOT,home=target,reuse_python=sys.executable)
         self.assertFalse(target.exists())
+
+    def test_persisted_path_aliases_match_the_resolved_workspace(self):
+        from buildchoice.desktop.project_settings import selected_binding
+        self.initialize(self.a)
+        registry=launch.projects(self.home)
+        ident=launch.project_id(self.a)
+        alias=str(self.a/'..'/'project-a')
+        registry['projects'][ident]['workspace']=alias
+        launch.write_json(self.home/'projects.json',registry)
+        self.assertEqual(launch.binding(self.home,self.a)['workspace'],alias)
+        self.assertEqual(selected_binding(self.home,self.a)['workspace'],alias)
 
     def test_private_hook_dispatches_by_event_project_not_active_project(self):
         a=self.initialize(self.a,'pilot');self.initialize(self.b,'off')

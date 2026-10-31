@@ -15,9 +15,9 @@ def selected_binding(home=None,workspace=None):
         if value.get('registry_version')!=1:raise ValueError('Invalid project registry')
         if workspace is not None:
             path=Path(workspace).resolve()
-            matches=[v for v in value['projects'].values() if path.is_relative_to(Path(v['workspace']))]
+            matches=[v for v in value['projects'].values() if path.is_relative_to(Path(v['workspace']).resolve())]
             if not matches:raise ValueError('Project is not registered')
-            return max(matches,key=lambda v:len(Path(v['workspace']).parts))
+            return max(matches,key=lambda v:len(Path(v['workspace']).resolve().parts))
         return value['projects'][value['active_project']]
     return json.loads((home/'binding.json').read_text(encoding='utf-8'))
 

@@ -82,9 +82,9 @@ def binding(home=None,workspace=None):
     if registry['projects']:
         requested=workspace or os.environ.get('BUILDCHOICE_WORKSPACE')
         cwd=Path(requested or Path.cwd()).resolve()
-        matches=[v for v in registry['projects'].values() if cwd.is_relative_to(Path(v['workspace']))]
+        matches=[v for v in registry['projects'].values() if cwd.is_relative_to(Path(v['workspace']).resolve())]
         if requested and not matches:raise ValueError('Requested project is not registered')
-        value=max(matches,key=lambda v:len(Path(v['workspace']).parts)) if matches else registry['projects'][registry['active_project']]
+        value=max(matches,key=lambda v:len(Path(v['workspace']).resolve().parts)) if matches else registry['projects'][registry['active_project']]
     else:
         value=json.loads((home/'binding.json').read_text(encoding='utf-8'))
         if workspace is not None and not Path(workspace).resolve().is_relative_to(Path(value['workspace']).resolve()):

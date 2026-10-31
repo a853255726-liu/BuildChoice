@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/release.yml'
+      - 'buildchoice/desktop/bundle.py'
 
 permissions:
   contents: read
