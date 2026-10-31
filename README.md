@@ -1,8 +1,10 @@
 # BuildChoice
 
-BuildChoice 是一个用于 Codex 的本地插件。遇到会影响产品实际行为的实现选择时，它会先检查需求和项目文件；确实需要用户决定的部分，再通过对话说明可选方案。
+**让用户决定 AI 编程中的关键产品行为，并检查决定是否落实。**
 
-比如开发一个拍照记账小程序：识别出小票上的金额和类别后，是直接写入账本，还是先让用户核对？两种方式都能实现，但使用流程和出错后的处理不同。这类选择适合交给用户，普通技术细节则由 Codex 自行处理。
+BuildChoice 是面向 Codex 的本地 AI 编程插件，重点服务不熟悉技术实现、但需要把控产品行为的开发者。面对模糊的开发需求，它先阅读当前项目约束，通过 Agent + Skill 提取会影响功能、数据、权限或费用的重要实现选择；只有当前确实需要用户决定时，才展示附有方案、影响与建议的决策卡。普通工程细节由 Codex 自行处理。
+
+用户确认后，BuildChoice 记录决定与版本，关联实现文件，并按需将选择转为行为验收条件、采集实际执行的测试结果。0.9 新增**项目决策记忆**：在同一项目的后续聊天中检索已确认选择，支持长期规则、30 天普通参考归档、遗忘与恢复。所有记录默认保存在本地工作区。
 
 ## 使用示例
 
@@ -10,106 +12,73 @@ BuildChoice 是一个用于 Codex 的本地插件。遇到会影响产品实际�
 
 > 帮我做一个记账小程序，支持拍照识别购物小票，自动提取消费金额、日期和类别。
 
-如果需求和项目资料都没有说明识别结果如何入账，Codex 可以在对话中提出这样的选择：
+在项目资料没有规定入账流程时，BuildChoice 可以展示：
 
 ```text
-BuildChoice · 决策 1/1
+BuildChoice · 关键实现选择
 
-识别完小票后，要直接保存账目，还是先让用户核对？
-如果金额或类别识别有误，直接保存会影响之后的消费统计。
+识别出小票后，是直接保存账目，还是先让用户核对？
 
 A. 自动保存
-   识别后直接生成记录，操作更快。
-   但识别错误也可能直接进入账本，需要事后修改。
+   操作更快，但识别错误可能直接进入账本。
 
 B. 核对后保存（推荐）
-   先显示识别出的金额、日期和类别，用户可以修改后再保存。
-   多一步操作，但能及时发现错账。
+   用户可以修改金额、日期和类别再保存，多一步操作但更容易避免错账。
 
-建议 B：这些数据会用于后续统计，保存前核对通常更稳妥。
-
-回复 A / B，也可以先讨论两种方式的区别。
+回复 A / B，也可以先讨论两种方案的区别。
 ```
 
-这是示意对话。用户选定方案后，在受信任 Hook 可用的环境中，插件会将回复与当前决策及版本关联记录，供后续开发参考。没有需要确认的选择时，不显示决策卡。
+选定方案后，Codex 继续开发。BuildChoice 保存当前决定与版本；需要时可登记相关实现文件，并通过实际执行的行为测试核对已声明的验收条件。后续开发可参考该项目已有决定，遇到适用范围变化或冲突时重新核实。
 
-## 安装
+上面是示意交互，实际提问以当前需求与项目约束为准。
 
-需要 Python 3.11+ 和支持本地插件的 Codex 环境。
+## 主要能力
 
-```bash
+- **关键决策发现与低打扰筛选**：五类候选检查范围、四道判断门槛、按开发场景选择检查视角；服务端按 `ASK_NOW / INSPECT / DEFER / PROCEED` 分流，先查项目证据，再决定是否需要打断。
+- **可解释决策卡与可信确认**：提供方案利弊与建议；由 Codex 的 `UserPromptSubmit` Hook 关联真实选项回复，支持解释、暂缓、版本修订和历史追溯。
+- **实现关联及行为验证**：记录关联的真实代码文件和哈希；根据已确认选择生成验收条件，显式执行项目行为测试，保留执行证据并识别结果失效。
+- **项目决策记忆**：已确认选择形成项目内参考，支持跨聊天检索、长期规则、30 天归档、遗忘与恢复；旧记忆不自动赋予新任务操作许可。
+- **本地优先与可控开关**：默认 Prompt-first，可单独开启决策卡；不需要额外训练或部署分类模型，保留 Codex 原有文件、网络和命令权限审批。
+
+## Windows PowerShell 安装
+
+需要 Python 3.11+、Git 和支持本地插件的 Codex。先创建或选定要使用的**现有项目目录**（`--workspace` 必须指向已存在的目录）：
+
+```powershell
 git clone https://github.com/a853255726-liu/change-note.git BuildChoice
 cd BuildChoice
 
-python plugins/buildchoice/setup.py \
-  --workspace /absolute/path/to/your-project \
-  --runtime-root . \
-  --install
-```
-
-在 Windows PowerShell 中可使用单行命令：
-
-```powershell
 python plugins/buildchoice/setup.py --workspace "C:\\path\\to\\your-project" --runtime-root . --install
-```
-
-安装器会准备本地 Python 环境。Codex 的 Hook 需要按宿主提示进行信任确认，安装器不会代为修改审批设置。
-
-安装后默认使用轻量的 Prompt-first 澄清策略。要开启对话决策卡，在仓库目录执行：
-
-```bash
 python scripts/buildchoice_decisions.py pilot
-```
-
-查看设置或关闭决策卡：
-
-```bash
-python scripts/buildchoice_decisions.py settings
-python scripts/buildchoice_decisions.py off
-```
-
-BuildChoice 不包含小判别模型、模型 worker 或模型依赖。候选由当前 Agent 提取，服务端通过项目证据与确定性规则分流。
-
-## 安装自检
-
-```powershell
-python scripts/buildchoice_doctor.py
 python scripts/buildchoice_doctor.py --host --json
 ```
 
-默认检查本地绑定、目标项目、Python 依赖、运行时入口和独立 MCP 启动；`--host` 额外通过只读接口检查插件启用与 Hook 信任声明。没有取得的状态显示“未验证”，不会自动安装、改配置或信任 Hook。独立 MCP 启动不证明宿主已加载插件，信任定义也不证明实际聊天回调已经执行。
+安装器准备本地依赖并注册插件。Hook 信任由 Codex 按正常审批流程确认，安装器不会自动修改宿主权限。
 
-## 工作方式
+Linux/macOS 安装时同样从仓库根目录运行 `setup.py`，将 `--workspace` 改为实际的绝对路径。
 
-V3 开启时，工作区内的用户消息会取得短期 Hook 句柄；是否正在开发由 Codex 结合本轮消息与对话上下文判断。短句和承接请求不会因为正则未命中被排除，普通咨询仍直接回答。
-
-插件通过一个 Skill 引导 Codex 查阅相关项目资料并整理候选选择。MCP 工具负责检查候选和已有证据，决定是先查文件、现在询问、稍后处理，还是直接继续。需要询问时，一次只展示一张卡。
-
-Agent 在同一次候选提取中附上简短的覆盖依据，说明相关维度已有答案、形成候选、不适用或仍不确定。服务端核对引用并保存记录，不增加第二轮复核；覆盖记录不证明没有遗漏，也不单独触发问题。
-
-确认记录保存在当前项目的 `.buildchoice_audit/ledger.sqlite3`。记录与当前会话、选项及版本关联；用户要求解释或给出自由回答时，不会被直接当作已经确认。决策发生变更时保留旧版本，便于检查后续实现是否需要调整。
-
-完成实现时，Agent 可顺带将决定关联到真实代码文件和行号，服务端保存文件哈希。决定修订或文件变化后，关联显示待复核；文件关联是 Agent 登记，不证明代码已正确满足决定。
-
-0.8 增加可选的决策落实验证：将当前已确认的选择整理为 Agent 推导的验收条件，显式运行已授权的行为测试，再通过 MCP 保存逐项结果。没有实际测试不能通过；决定、验收条件、声明的代码/测试/配置或执行环境发生变化后，旧通过结果显示失效。条件推导不是新的用户授权，静态代码引用不能替代行为测试。见 [决策落实验证](docs/DECISION_VERIFICATION.md)。
-
-插件还保留了独立的决策证据审计工具，可以读取项目文件、关联引用并导出记录。它是可选的本地网页入口，不是插件运行的必需部分。目前网页展示 audit.v1 审计账本、证据快照、复核和导出；V3 聊天选择及实现关联通过 MCP 查询。网页可单独使用：
+## 运行模式
 
 ```bash
-python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project serve
+python scripts/buildchoice_decisions.py settings   # 查看决策卡状态
+python scripts/buildchoice_decisions.py pilot      # 启用 V3 决策引导
+python scripts/buildchoice_decisions.py off        # 关闭 V3 决策引导
+python scripts/buildchoice_settings.py status      # 查看全局运行模式
 ```
 
-本地记录不会由插件自动上传。对话决策卡不替代 Codex 自身的文件、网络或命令执行审批。
+- **Prompt-first** 为默认澄清策略；决策卡需独立开启。
+- **V3 决策卡** 根据当前开发任务和项目资料按需出现，不设追问数量配额。
+- **项目账本** 位于工作区 `.buildchoice_audit/ledger.sqlite3`。本地记录不会由插件自动上传。
+- **实现验证** 需要在原有授权下显式运行行为测试，静态文件关联不等于测试通过。
 
-可通过 `python scripts/buildchoice_settings.py status` 查看运行模式；`off` 完全关闭提示、MCP 审计与决策卡，`prompt` 恢复 Prompt-first。独立启动的审计 CLI/网页仍由使用者显式操作。
+## 测试与文档
 
-## 文档
+项目包含单元回归、真实 STDIO MCP 协议检查、源码/打包检查、跨平台路径边界检查及浏览器行为正反例。最新执行记录和具体测试范围参见 [验证记录](docs/VALIDATION.md)。
 
-- [项目决策记忆与遗忘](docs/DECISION_MEMORY.md)：自动保存已确认选择为参考，明确标记为长期规则，普通参考 30 天后归档，支持遗忘与恢复。
+- [项目决策记忆与遗忘](docs/DECISION_MEMORY.md)
 - [决策卡使用说明](docs/DECISION_GUIDANCE.md)
-- [决策落实验证与示例](docs/DECISION_VERIFICATION.md)
-- [名称与升级说明](docs/UPGRADING.md)
-- [验证方法与范围](docs/VALIDATION.md)
-- [集成、真实 Codex 宿主验收与产品效果测试](docs/END_TO_END_TESTING.md)
+- [决策落实验证](docs/DECISION_VERIFICATION.md)
 - [架构](docs/ARCHITECTURE.md)
+- [测试与复现指南](docs/END_TO_END_TESTING.md)
+- [安装升级](docs/UPGRADING.md)
 - [MCP 与数据接口](docs/API.md)
