@@ -1,6 +1,6 @@
 # BuildChoice · 架构
 
-BuildChoice 保留 Prompt-first、按需证据审计和 V3 对话决策卡。0.6.0 移除小判别模型、推理 worker、模型接口、强制评估回执和分类器设置面板。
+本文面向贡献者，介绍 Codex 插件的运行流程与模块边界。BuildChoice 由 Skill、MCP、UserPromptSubmit Hook 和本地 SQLite 账本组成，提供决策引导、项目记忆、实现关联和按需验证。
 
 ## 主流程
 
@@ -34,7 +34,7 @@ Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配�
 - `verification_inputs.py` / `verification.py`：声明输入/环境指纹、执行回执核对、逐项结论和动态失效；MCP 不执行项目命令。
 - `verification_runner.py` / `verification_worker.py`：仅显式 CLI 启动的固定 unittest 采集器，保留真实用例、退出码、输入前后快照和报告哈希。
 - `doctor.py`：只读本地安装与可选宿主声明检查，未知状态不报为通过。
-- `audit.py` / `audit_web.py`：可选本地审计工作台，展示 audit.v1 的决定、引用、复核与报告；未扩展为 V3 界面。
+- audit.py：共享账本、受限文件读取、引用定位与兼容审计记录，为决策、记忆和验证提供证据基础。
 - `buildchoice_mcp.py`：按需审计、决策卡与原生设置；无模型调用接口。
 
 ## 覆盖依据
@@ -63,4 +63,4 @@ Agent 在原有开发过程中顺带登记决定与实现文件、可选行号�
 
 Python 包、插件 ID、MCP 服务键统一为 `buildchoice`。安装数据使用 `~/.buildchoice`，项目账本使用 `.buildchoice_audit`。插件只注册 UserPromptSubmit Hook；宿主权限审批与 Hook 信任保持独立。
 
-模式 off 停用提示、MCP 审计和决策卡；显式启动的审计 CLI/网页仍可独立使用。升级方式见 [升级说明](UPGRADING.md)。
+模式 off 停用提示、证据写入、决策卡、项目记忆及验证；设置和关闭状态仍可查询。升级方式见 [升级说明](UPGRADING.md)。

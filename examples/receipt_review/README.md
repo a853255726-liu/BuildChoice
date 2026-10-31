@@ -1,5 +1,7 @@
 # 核对后保存 · 本地行为示例
 
+本目录用于演示和自动化测试核对后保存的业务行为。日常使用 BuildChoice 时，在 Codex 对话中提出开发需求即可。
+
 模拟识别出金额、日期和类别后进入核对页面，用户可以修改、确认保存或取消。正式账本使用 localStorage。`receipt.json` 是合成数据，示例不调用相机/OCR，也不是已部署的小程序。
 
 `manifest.json` 声明实现、测试、输入 fixture、配置和 Python 测试依赖。`tests/test_receipt.py` 使用真实浏览器点击、填写、读取 DOM 和账本；四个条件及用例 ID 在 checks/verification_helpers.py 的 criteria() 中提供，由测试辅助代码推导并绑定模拟 Hook 确认。

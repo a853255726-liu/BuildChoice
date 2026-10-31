@@ -4,17 +4,17 @@ import zipfile
 from pathlib import Path
 from buildchoice.desktop.common import ROOT, file_sha
 
-VERSION = '0.9.0'
+VERSION = '0.9.1'
 
 
 def build_core_runtime(destination, root=ROOT):
-    """Prompt-first, audit and decision-card runtime without model dependencies."""
+    """Codex plugin runtime and contracts without standalone web assets or model dependencies."""
     import hashlib
     root, destination = Path(root), Path(destination)
     names = {p.relative_to(root).as_posix() for p in (root/'buildchoice').rglob('*')
-             if p.is_file() and '__pycache__' not in p.parts and p.suffix in ('.py', '.html', '.css', '.js')}
+             if p.is_file() and '__pycache__' not in p.parts and p.suffix == '.py'}
     names.update('scripts/'+n for n in ('buildchoice_mcp.py','buildchoice_hook.py','buildchoice_settings.py',
-                                       'buildchoice_audit.py','buildchoice_decisions.py','buildchoice_doctor.py',
+                                       'buildchoice_decisions.py','buildchoice_doctor.py',
                                        'buildchoice_run_verification.py','buildchoice_test_worker.py'))
     names.add('docs/contracts/decision-v3.schema.json')
     names.add('docs/DECISION_MEMORY.md')

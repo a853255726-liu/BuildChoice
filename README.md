@@ -11,7 +11,7 @@ BuildChoice 在开发过程中结合用户需求和现有项目资料，识别�
 - **主动发现关键选择**：通过 Agent + Skill 的结构化检查、场景化提示和项目资料读取，寻找影响实际产品行为的未明确决策。
 - **按需追问与方案解释**：MCP 将候选分为 `ASK_NOW / INSPECT / DEFER / PROCEED`，优先读取已有信息；确需决定时，在原对话中逐项展示方案、利弊与建议。
 - **确认与实现关联**：通过 Codex Hook 关联用户在当前会话中的选项回复，记录决策版本及相关代码位置，方便需求修改与后续调整。
-- **项目决策记忆**：在同一项目的不同聊天中检索已有选择，支持长期规则、普通参考自动归档，以及遗忘、恢复和冲突处理。
+- **项目决策记忆**：在同一项目的不同聊天中检索已有选择，支持长期规则、普通参考自动归档，以及遗忘、恢复和冲突处理。遗忘会停止主动召回，历史记录仍保留。
 - **决策落实检查**：将已确认的选择整理为可执行的行为要求，并结合相关代码和测试结果，帮助核对实际实现是否符合用户选择。
 
 ## 使用示例
@@ -60,7 +60,7 @@ MCP 检查证据与当前开发依赖
 需要 Python 3.11+、Git 和支持本地插件的 Codex。将 `--workspace` 替换为**已经存在**的项目目录。
 
 ```bash
-git clone https://github.com/a853255726-liu/change-note.git BuildChoice
+git clone https://github.com/a853255726-liu/BuildChoice.git
 cd BuildChoice
 
 python plugins/buildchoice/setup.py \
@@ -74,11 +74,13 @@ python scripts/buildchoice_decisions.py pilot
 Windows PowerShell 可以使用单行命令：
 
 ```powershell
-python plugins/buildchoice/setup.py --workspace "C:\\path\\to\\your-project" --runtime-root . --install
+python plugins/buildchoice/setup.py --workspace "C:\path\to\your-project" --runtime-root . --install
 python scripts/buildchoice_decisions.py pilot
 ```
 
 安装器会准备本地运行依赖。Codex 的 Hook 信任由宿主按原有流程确认，不会被插件自动修改。
+
+安装并启用后，在 Codex 对话中提出开发需求，BuildChoice 随相关任务工作。
 
 运行模式：
 
@@ -98,3 +100,5 @@ python scripts/buildchoice_decisions.py off       # 关闭决策卡
 - [决策落实功能](docs/DECISION_VERIFICATION.md)
 - [安装与升级](docs/UPGRADING.md)
 - [MCP 接口](docs/API.md)
+- [故障排查](docs/TROUBLESHOOTING.md)
+- [开发与测试](docs/VALIDATION.md)
