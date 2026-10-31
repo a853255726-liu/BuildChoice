@@ -217,6 +217,60 @@ class GuidanceTests(unittest.TestCase):
             self.service.screen(self.request(task_text='A',session_handle=answered['session_handle']))
         self.assertEqual(self.service.status(first['task_id'],answered['session_handle'])['confirmation_history'][0]['choice_id'],'A')
 
+    def test_activation_retry_is_idempotent_only_while_the_same_card_is_current(self):
+        handle=self.context()
+        first=self.service.screen(self.request(session_handle=handle));item=first['decisions'][0]
+        shown=self.service.activate(first['task_id'],item['decision_id'],1,'show-profile',handle)
+        store=DecisionStore(self.workspace)
+        with store.connect() as db:
+            initial_expiry=db.execute('SELECT expires FROM decision_v3_active').fetchone()[0]
+        self.assertEqual(self.service.activate(first['task_id'],item['decision_id'],1,'show-profile',handle),shown)
+        discussion=store.observe_hook({**self.event,'turn_id':'2','prompt':'解释一下'})
+        self.assertEqual(self.service.activate(first['task_id'],item['decision_id'],1,'show-profile',discussion['session_handle']),shown)
+        with store.connect() as db:
+            self.assertEqual(db.execute('SELECT expires FROM decision_v3_active').fetchone()[0],initial_expiry)
+            self.assertEqual(db.execute("SELECT count(*) FROM decision_v3_events WHERE event_type='CARD_ACTIVATED'").fetchone()[0],1)
+        answer=store.observe_hook({**self.event,'turn_id':'3','prompt':'A'})
+        with self.assertRaises(ValueError):
+            self.service.activate(first['task_id'],item['decision_id'],1,'show-profile',answer['session_handle'])
+        self.assertEqual(len(self.service.status(first['task_id'],answer['session_handle'])['confirmation_history']),1)
+
+    def test_old_activation_retry_cannot_show_another_card_or_change_its_confirmation(self):
+        handle=self.context()
+        first=self.service.screen(self.request(session_handle=handle));item=first['decisions'][0]
+        self.service.activate(first['task_id'],item['decision_id'],1,'show-profile',handle)
+        store=DecisionStore(self.workspace)
+        event={**self.event,'turn_id':'2','prompt':'先做发票的可见性设置'}
+        next_handle=store.observe_hook(event)['session_handle']
+        invoice={**candidate(),'candidate_id':'invoice','field':'Invoice visibility','question':'Who can see invoices?'}
+        second=self.service.screen(self.request([invoice],task_text=event['prompt'],session_handle=next_handle))
+        other=second['decisions'][0]
+        self.service.activate(second['task_id'],other['decision_id'],1,'show-invoice',next_handle)
+        with self.assertRaises(ValueError):
+            self.service.activate(first['task_id'],item['decision_id'],1,'show-profile',next_handle)
+        with store.connect() as db:
+            self.assertEqual(db.execute('SELECT decision_id FROM decision_v3_active').fetchone()[0],other['decision_id'])
+        answer=store.observe_hook({**self.event,'turn_id':'3','prompt':'B'})
+        self.assertEqual(answer['decision_id'],other['decision_id'])
+        self.assertEqual(self.service.status(first['task_id'],answer['session_handle'])['confirmation_history'],[])
+
+    def test_activation_retry_rejects_expiry_revision_and_changed_card_content(self):
+        first=self.service.screen(self.request());item=first['decisions'][0]
+        args=(first['task_id'],item['decision_id'],1,'show')
+        self.service.activate(*args)
+        with patch('buildchoice.desktop.decision_store.time.time',return_value=time.time()+901):
+            with self.assertRaises(ValueError):self.service.activate(*args)
+        self.service.prepare_revision(first['task_id'],item['decision_id'],1,candidate(),'New preference')
+        with self.assertRaises(ValueError):self.service.activate(*args)
+        # A re-screen can change a rendered question without changing the options/revision.
+        separate=self.service.screen(self.request(task_text='Another task'))
+        second=separate['decisions'][0]
+        self.service.activate(separate['task_id'],second['decision_id'],1,'second')
+        changed={**candidate(),'question':'Who can read the updated profile?'}
+        self.service.screen(self.request([changed],task_text='Another task',task_id=separate['task_id']))
+        with self.assertRaises(ValueError):
+            self.service.activate(separate['task_id'],second['decision_id'],1,'second')
+
     def test_four_routes_use_evidence_and_dependency(self):
         self.assertEqual(route(candidate(),{})['status'],'ASK_NOW')
         self.assertEqual(route(candidate(),{'unread':True})['status'],'INSPECT')

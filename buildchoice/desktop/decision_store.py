@@ -277,7 +277,6 @@ class DecisionStore:
             prior=db.execute('SELECT * FROM decision_v3_operations WHERE task_id=? AND operation=? AND key=?',(task['id'],'activate',key)).fetchone()
             if prior:
                 if prior['input_digest']!=fingerprint(given):raise ValueError('Idempotency key reused with changed input')
-                return json.loads(prior['response_json'])
             row=db.execute('SELECT * FROM decision_v3_items WHERE id=? AND task_id=? AND revision=?',(decision_id,task['id'],revision)).fetchone()
             latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(decision_id,)).fetchone()[0]
             if row is None or latest!=revision:raise ValueError('Card revision is stale or not part of task')
@@ -285,6 +284,15 @@ class DecisionStore:
             if result['status']!='ASK_NOW' or row['state'] in ('confirmed','superseded'):raise ValueError('Only unresolved ASK_NOW cards can activate')
             scope=task['host_session_digest'] or 'unverified:'+task['owner']
             active=db.execute('SELECT * FROM decision_v3_active WHERE workspace=? AND host_session_digest=?',(str(self.workspace),scope)).fetchone()
+            if prior:
+                cached=json.loads(prior['response_json'])
+                # A retry may repeat only the card that is still actually pending.
+                # Never replay historical text while another card receives A/B replies.
+                if (active is None or (active['decision_id'],active['revision'])!=(decision_id,revision) or
+                        active['expires']<time.time() or row['state'] not in ('card_active','needs_explanation') or
+                        cached['card']!=result['card']):
+                    raise ValueError('Cached card activation is no longer current; inspect status and use a new activation key')
+                return cached
             if active and active['decision_id'] and active['expires']<time.time():
                 self.release_active(db,active,'EXPIRED_CARD')
                 active=None

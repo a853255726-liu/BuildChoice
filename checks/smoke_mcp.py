@@ -89,11 +89,18 @@ try:
     active=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert 'BuildChoice' in active['message']
+    retried=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
+        'revision':1,'idempotency_key':'activate','session_handle':handle})
+    assert retried==active
     confirmed=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,'turn_id':'2','prompt':'A'}))[0]
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert status['decisions'][0]['status']=='PROCEED'
     assert status['confirmation_history'][0]['choice_id']=='A'
     assert status['coverage']==response['coverage']
+    old_activation=send('tools/call',{'name':'buildchoice_card_activate','arguments':{
+        'task_id':response['task_id'],'decision_id':item['decision_id'],'revision':1,
+        'idempotency_key':'activate','session_handle':confirmed}})
+    assert old_activation.get('isError'),old_activation
 
     (workspace/'profile.py').write_text('visibility = "private"\n',encoding='utf-8')
     linked=call('buildchoice_link_implementation',{'task_id':response['task_id'],'decision_id':item['decision_id'],

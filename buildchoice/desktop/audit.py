@@ -7,12 +7,22 @@ This is an aid to review, not a general semantic or authorization verifier.
 import hashlib
 import json
 import sqlite3
+import stat
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 MAX_BYTES = 256 * 1024
 PRIVATE_PARTS = {'.git', '.codex', '.agents', '.aws', '.ssh', '.buildchoice_audit', '.gate_audit', '.venv', 'node_modules'}
+
+
+def linked_path(path):
+    """Detect symlinks and Windows junctions without requiring Path.is_junction (3.12+)."""
+    try:metadata=Path(path).lstat()
+    except FileNotFoundError:return False
+    tag=getattr(metadata,'st_reparse_tag',0)
+    return stat.S_ISLNK(metadata.st_mode) or bool(tag and tag in {
+        getattr(stat,'IO_REPARSE_TAG_MOUNT_POINT',None),getattr(stat,'IO_REPARSE_TAG_SYMLINK',None)})
 
 
 def sha(data):
@@ -115,11 +125,13 @@ class Ledger:
         current = self.workspace
         for part in parts:
             current = current / part
-            if current.is_symlink() or (hasattr(current, 'is_junction') and current.is_junction()):
+            if linked_path(current):
                 raise ValueError('Linked evidence paths are excluded')
         path = current.resolve(strict=True)
         if not path.is_relative_to(self.workspace) or not path.is_file():
             raise ValueError('Evidence must be a workspace file')
+        if any(p.lower() in PRIVATE_PARTS or p.lower().startswith('.env') for p in path.relative_to(self.workspace).parts):
+            raise ValueError('Resolved private path is excluded')
         return path
 
     def read(self, session, relative):

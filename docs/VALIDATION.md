@@ -1,4 +1,4 @@
-# BuildChoice · 0.8.1 验证
+# BuildChoice · 0.8.2 验证
 
 安装根目录 requirements.txt 后执行：
 
@@ -8,6 +8,10 @@ python checks/smoke_mcp.py
 python checks/check_package.py
 python scripts/build_distribution.py
 ```
+
+0.8.2 新增旧卡激活重试（当前卡/解释/已确认/过期/修订/卡面变化/切换到另一张卡）与路径边界回归。路径测试使用自建假文件，真实创建 NTFS 目录联接，验证私密和普通目标均被拒绝且不保存来源；验证产物目录使用同一检查。另验解析后的私密路径及符号链接，未取得符号链接权限时明确跳过。GitHub Actions 新增 Windows Python 3.11 作业，与原 Linux 完整集成作业并行。
+
+2026-10-31 本机 0.8.2 验证：Python 3.11.9 执行 64 项回归，63 项通过、1 项因沙箱缺少符号链接权限跳过；随后以当前用户权限单独执行全部 5 项路径回归，含真实符号链接和 NTFS 联接，全部通过。真实 STDIO MCP 检查包含同卡正常重试和已确认旧卡拒绝重试，源码/运行包初始化、行为采集验证及 0.8.2 分发包生成通过。
 
 0.8.1 回归新增真实 MCP `tools.listChanged` 能力与通知检查：从 V3 关闭的连接开启试用，原生设置立即通知，CLI 修改无需客户端请求即可触发通知；覆盖原生/普通 STDIO、重复设置、完全关闭及禁用调用边界。新增过期卡解除占用、新任务切换与旧卡恢复、解释/严格回复边界，以及真实 SDK `HookEventName.user_prompt_submit` 枚举匹配与无关 Hook 排除。宿主声明检查仍不代表实际聊天回调验收。
 

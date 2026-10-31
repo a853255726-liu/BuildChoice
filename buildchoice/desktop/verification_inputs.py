@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 from .acceptance import validate
-from .audit import MAX_BYTES
+from .audit import MAX_BYTES, linked_path
 from .common import ROOT, file_sha
 from .decision_store import fingerprint
 
@@ -76,7 +76,7 @@ def artifact_directory(store, execution_id, create=False):
     path=store.workspace
     for part in ('.buildchoice_audit','verification_runs',execution_id):
         path=path/part
-        if path.is_symlink() or (hasattr(path,'is_junction') and path.is_junction()):raise ValueError('LINKED_ARTIFACT_PATH')
+        if linked_path(path):raise ValueError('LINKED_ARTIFACT_PATH')
     if not path.resolve().is_relative_to(store.workspace):raise ValueError('ARTIFACT_PATH_ESCAPE')
     if create:path.mkdir(parents=True,exist_ok=False)
     return path
