@@ -22,6 +22,8 @@ Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配�
 
 ## 模块边界
 
+Skill 为 Agent 提供工作指引，MCP 暴露有状态工具，Hook 关联宿主观察到的用户消息。指引与工具返回内容不具备额外的操作授权。
+
 - `decision_memory.py`：从真实 Hook 确认派生项目参考；管理动作作为 MEMORY_ACTION_OBSERVED 事件保存，跨聊天检索不扩大原任务访问权限。普通参考 30 天后归档，长期规则需整条用户命令标记；记忆不生成新确认或操作许可。
 - `settings.py`：Prompt-first / off；`decision_settings.py`：独立 V3 试用设置。
 - `prompt_policy.py` / `decision_hook.py`：澄清原则、工作区范围与真实消息回调。
@@ -64,3 +66,17 @@ Agent 在原有开发过程中顺带登记决定与实现文件、可选行号�
 Python 包、插件 ID、MCP 服务键统一为 `buildchoice`。安装数据使用 `~/.buildchoice`，项目账本使用 `.buildchoice_audit`。插件只注册 UserPromptSubmit Hook；宿主权限审批与 Hook 信任保持独立。
 
 模式 off 停用提示、证据写入、决策卡、项目记忆及验证；设置和关闭状态仍可查询。升级方式见 [升级说明](UPGRADING.md)。
+
+## 名称与兼容目录
+
+| 标识 | 用途 |
+|---|---|
+| 0.9.1 | 产品发布版本，写入插件元数据和分发包名称 |
+| V3 / decision.v3 | 决策卡流程及其数据契约，与产品版本分别演进 |
+| audit.v1 | 文件来源、引用与兼容审计记录格式 |
+| memory.v1 | 项目决策记忆的查询结果格式 |
+| candidate-extractor-v3.5 | Agent 候选提取指引版本 |
+
+.claude-plugin/marketplace.json 是当前安装器使用的本地市场兼容布局；plugins/buildchoice/.codex-plugin/plugin.json 是 Codex 插件清单。install_local.py 通过 openai_codex SDK 调用 Codex app-server 的 plugin/install 和 plugin/read；目录名称不代表运行了 Claude 服务。
+
+OpenAI 的[本地插件市场文档](https://developers.openai.com/plugins/build/plugins#how-local-marketplaces-work)列出了 .agents/plugins 与兼容的 .claude-plugin 布局。仓库保留现有兼容布局，避免仅为重命名改变安装路径和已有绑定。

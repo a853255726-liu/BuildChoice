@@ -1,5 +1,9 @@
 # BuildChoice
 
+[![CI](https://github.com/a853255726-liu/BuildChoice/actions/workflows/integration.yml/badge.svg)](https://github.com/a853255726-liu/BuildChoice/actions/workflows/integration.yml)
+[![Release](https://img.shields.io/github/v/release/a853255726-liu/BuildChoice)](https://github.com/a853255726-liu/BuildChoice/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **让 AI 编程中的关键产品选择，由用户来决定。**
 
 BuildChoice 是一款面向 Codex 的本地 AI 编程插件，帮助使用 AI 开发应用的用户掌握重要的产品决策。用户往往只描述想实现的功能，却未必知道背后存在多种会影响体验、数据、权限或成本的实现方案。如果 Agent 擅自选择，最终做出来的产品可能与用户预期不同。
@@ -13,6 +17,20 @@ BuildChoice 在开发过程中结合用户需求和现有项目资料，识别�
 - **确认与实现关联**：通过 Codex Hook 关联用户在当前会话中的选项回复，记录决策版本及相关代码位置，方便需求修改与后续调整。
 - **项目决策记忆**：在同一项目的不同聊天中检索已有选择，支持长期规则、普通参考自动归档，以及遗忘、恢复和冲突处理。遗忘会停止主动召回，历史记录仍保留。
 - **决策落实检查**：将已确认的选择整理为可执行的行为要求，并结合相关代码和测试结果，帮助核对实际实现是否符合用户选择。
+
+## 在提示词之外增加了什么
+
+提问、方案解释和开发测试仍由 Codex 执行。BuildChoice 将其中的重要选择保存成可查询、可修订的记录，并用服务端规则检查确认和证据是否仍然适用。
+
+| 在对话中提出的要求 | BuildChoice 提供的记录与检查 |
+|---|---|
+| 遇到重要选择先询问 | 根据证据与开发依赖进行四状态分流，同一会话一次激活一张卡 |
+| 记住用户选了什么 | 将 Hook 观察到的选项回复绑定到具体决策和版本，保留确认来源 |
+| 修改需求后沿用正确方案 | 追加修订，保留旧选择，提示相关代码和验证结果需要复核 |
+| 下次聊天继续参考 | 项目内检索已确认选择，区分普通参考、长期规则、归档与遗忘 |
+| 检查代码是否落实选择 | 关联实际文件和测试执行记录；输入变化后使旧通过结果失效 |
+
+候选是否发现仍依赖 Agent 和已读取资料。上述机制不保证发现所有重要选择，也不代表已证明漏问率或开发效率改善。
 
 ## 使用示例
 
@@ -55,6 +73,13 @@ MCP 检查证据与当前开发依赖
 
 插件不需要单独部署分类模型。核心组件包括 Codex Skill、MCP、UserPromptSubmit Hook、SQLite 本地账本与可选的代码落实检查功能。默认使用轻量的 Prompt-first 策略，决策卡可独立开启。
 
+## 名称与运行模式
+
+- **0.9.1** 是当前产品发布版本。
+- **决策卡模式**在配置和技术文档中称为 V3，开启命令是 pilot；它是功能开关，不是产品版本号。
+- **Prompt-first** 是默认的澄清提示策略；完整决策卡流程需另行开启。
+- **.claude-plugin** 是本地插件市场的兼容目录，当前安装器通过 Codex app-server 注册和加载插件，不需要启动另一个编程助手。见[架构说明](docs/ARCHITECTURE.md#名称与兼容目录)。
+
 ## 安装
 
 需要 Python 3.11+、Git 和支持本地插件的 Codex。将 `--workspace` 替换为**已经存在**的项目目录。
@@ -91,6 +116,10 @@ python scripts/buildchoice_decisions.py off       # 关闭决策卡
 ```
 
 本地记录位于项目的 `.buildchoice_audit/ledger.sqlite3`，不会由插件自动上传。BuildChoice 不替代 Codex 的文件、网络和命令权限审批。
+
+## 发布与许可
+
+[Releases](https://github.com/a853255726-liu/BuildChoice/releases) 提供核心运行包、插件包与 SHA256 校验文件；安装方式见[升级说明](docs/UPGRADING.md)。项目采用 [MIT License](LICENSE)。
 
 ## 详细文档
 

@@ -43,6 +43,7 @@ for result in archives:
         assert archive.testzip() is None
         assert not any('/backends/' in name or '/predictor/' in name or 'requirements-model' in name for name in archive.namelist())
         if 'core' in path.name:
+            assert archive.read('LICENSE')==(root/'LICENSE').read_bytes()
             manifest=json.loads(archive.read('runtime_manifest.json'))
             assert manifest['package_version']==VERSION=='0.9.1'
             assert not any('audit_web' in name or name.endswith(('.html','.css','.js')) for name in archive.namelist())
@@ -54,6 +55,7 @@ for result in archives:
                 data=archive.read(name)
                 assert len(data)==entry['bytes'] and hashlib.sha256(data).hexdigest()==entry['sha256']
         else:
+            assert archive.read('buildchoice/LICENSE')==(root/'LICENSE').read_bytes()
             plugin=json.loads(archive.read('buildchoice/.codex-plugin/plugin.json'))
             assert plugin['version']==VERSION
             assert set(json.loads(archive.read('buildchoice/hooks/hooks.json'))['hooks'])=={'UserPromptSubmit'}

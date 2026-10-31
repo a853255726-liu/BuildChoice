@@ -54,6 +54,7 @@ def archive_plugin(destination,root=ROOT):
     destination = Path(destination)
     destination.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(destination,'w',compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(PLUGIN+'/LICENSE',(Path(root)/'LICENSE').read_bytes())
         for name in names:
             archive.write(package/name,PLUGIN+'/'+name)
     checksum = file_sha(destination)
