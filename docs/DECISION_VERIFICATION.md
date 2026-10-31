@@ -59,4 +59,4 @@ python /absolute/BuildChoice/scripts/buildchoice_run_verification.py \
 
 见 [示例](../examples/receipt_review/README.md)。条件覆盖显示识别结果、允许修改并保存修改值、确认前不写入正式账本、取消不入账。使用合成识别结果、独立浏览器上下文及 localStorage 的实际读写，包含提前保存和忽略修改两种反例。
 
-示例未调用摄像头、OCR、数据库后端或真实小程序平台。测试辅助确认由模拟 Hook 事件产生，不证明目标 Codex 安装已经受信任地捕获用户回答；应另用 doctor 和真实会话检查。0.9 提供独立的[跨聊天决策记忆](DECISION_MEMORY.md)，不跨会话迁移验收确认。自动影响分析、任意测试框架和自动生产验收仍不在本版范围内。
+示例未调用摄像头、OCR、数据库后端或真实小程序平台。本示例以模拟 Hook 事件准备受控测试数据；实际用户确认以 Codex 宿主 Hook 的真实记录为准。0.9 提供独立的[跨聊天决策记忆](DECISION_MEMORY.md)，但不会将旧会话确认直接迁移为新任务的验收授权。当前验收适配器为固定的 Python unittest，验证范围取决于声明的输入、测试与依赖。
