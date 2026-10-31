@@ -1,21 +1,28 @@
-# BuildChoice 插件
+# BuildChoice · Codex 插件
 
-0.9 增加项目决策记忆：真实确认自动成为普通参考，明确标记为长期规则后可跨聊天沿用；参考 30 天后归档，支持用户在对话中明确遗忘和恢复。重启后可说“查看项目决策记忆”，取得实际编号再单独发送“长期记住 M…”或“遗忘 M…”。不自动上传，不生成新的操作许可。
+BuildChoice 帮助 AI 编程用户掌握影响产品行为的重要实现选择。它结合需求与项目文件识别候选决策，在需要时解释可选方案与取舍；用户确定后，保存选择、关联相关代码，并在同一项目的后续聊天中复用。
 
-BuildChoice 在 Codex 中帮助用户确认重要实现选择，提供按需决策卡、本地选择记录和项目文件证据审计。默认使用 Prompt-first，V3 独立开启，无小判别模型或推理服务。
+## 功能
+
+- **主动决策引导**：Agent + Skill 识别关键选择，MCP 根据证据与当前开发阶段确定是否需要询问，避免因普通技术细节打断用户。
+- **对话决策卡**：在原 Codex 对话中展示选项、影响和建议，Hook 关联真实回复，保留修订历史。
+- **项目决策记忆**：已确认选择形成项目参考；支持长期规则、普通参考 30 天归档、遗忘与恢复，遇到范围变化或冲突时重新确认。
+- **实现关联与落实检查**：记录决定关联的代码位置，并可依据选择形成行为条件，辅助核对功能实现。
 
 ## 安装
 
-从插件目录执行，使用实际运行时路径：
+从插件目录执行，`--workspace` 指向已有项目目录：
 
 ```bash
-python setup.py --workspace /path/to/your-project --runtime-root /path/to/BuildChoice --install
+python setup.py --workspace /absolute/path/to/project --runtime-root /absolute/path/to/BuildChoice --install
 ```
 
-安装器准备核心依赖；已有环境可指定 `--reuse-python /path/to/venv/bin/python`，Windows 使用实际 Scripts/python.exe。已有绑定指向另一工作区时，指定独立 `--data-home`。
+安装后在仓库根目录启用决策卡：
 
-可由根目录 `scripts/build_distribution.py` 构建运行包，再通过 `--bundle /path/to/buildchoice-core-0.9.0.zip` 初始化。该版本不再接受模型依赖、设备或推理 worker 端口参数。
+```bash
+python scripts/buildchoice_decisions.py pilot
+```
 
-插件仅注册 UserPromptSubmit Hook，用于澄清原则与实际回复关联。Hook 信任由宿主正常审阅，初始化器不修改审批。项目账本保存于 `.buildchoice_audit`。
+默认采用 Prompt-first，决策卡独立开启。安装器会配置本地依赖，Hook 信任由 Codex 正常审批。决策历史保存在项目的 `.buildchoice_audit` 目录，不自动上传。
 
-0.8 提供按需验收准备和验证工具。条件由 Agent 从当前已确认选择推导；验证 MCP 不执行项目命令。行为测试通过原有授权路径显式调用运行时的 `scripts/buildchoice_run_verification.py`，再提交返回的 execution_id。运行时目录与 Python 可从安装数据目录的 binding.json 读取，默认 `~/.buildchoice`；独立安装使用相应 BUILDCHOICE_DATA。没有真实测试不能通过，输入变化后旧通过结果失效。
+更多用法参见仓库根目录 [README](../../README.md)、[决策卡使用指南](../../docs/DECISION_GUIDANCE.md) 和 [决策记忆指南](../../docs/DECISION_MEMORY.md)。
