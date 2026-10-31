@@ -26,7 +26,12 @@ def main():
             'runtime_digest':receipt['runtime_digest'],'exit_code':receipt['exit_code'],
             'criteria':[{k:c[k] for k in ('criterion_id','verdict','reason')} for c in result['criteria']]}
         results.append(summary)
-        assert result['verdict']==expected,(summary,str(fixture['workspace']),receipt['execution_status'])
+        if result['verdict'] != expected:
+            # Only synthetic fixture output is printed, never real user workspaces.
+            artifact = fixture['workspace'] / '.buildchoice_audit' / 'verification_runs' / receipt['execution_id']
+            log_file = artifact / 'output.log'
+            detail = log_file.read_text(encoding='utf-8', errors='replace')[-8000:] if log_file.exists() else 'No worker log'
+            raise AssertionError((summary, receipt['execution_status'], detail))
         assert result['applicability']=='current',result['stale_reasons']
     document={'scope':'Real headless browser/localStorage behavior; synthetic confirmation fixture, not actual host or OCR/platform efficacy.',
               'results':results}

@@ -12,7 +12,8 @@ class ReceiptTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.playwright=sync_playwright().start()
-        cls.browser=cls.playwright.chromium.launch(headless=True,chromium_sandbox=True,
+        cls.browser=cls.playwright.chromium.launch(headless=True,
+            chromium_sandbox=os.environ.get('BUILDCHOICE_TEST_BROWSER_NO_SANDBOX') != '1',
             executable_path=os.environ.get('BUILDCHOICE_TEST_BROWSER'),timeout=15000)
 
     @classmethod
