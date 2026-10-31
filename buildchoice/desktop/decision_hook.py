@@ -29,8 +29,11 @@ def handle_prompt(event,workspace,settings_path=None):
                  '仅实际开发或实施前检查使用 decision-discovery Skill；纯咨询与解释直接回答，句柄本身不要求调用工具或提问。'
                  '需要提取时，在同一次提取中附简短 coverage 依据，不增加第二轮复核；零候选正常继续。'
                  '已有待答卡先处理回复状态，一次一张卡。'+
+                 '实际开发先读取项目决策记忆；普通参考不等于长期规则，冲突需核实，记忆不授予宿主操作权限。'+
                  ('检测到开发表达提示。' if hint else '')+
-                 '用户回复状态：'+observed.get('confirmation_status','none')+'。')
+                 '用户回复状态：'+observed.get('confirmation_status','none')+'。'+
+                 ('记忆管理结果：'+str({k:v for k,v in observed.items() if k.startswith('memory_') or k=='reason'})+'。'
+                  if 'memory_status' in observed else ''))
     else:
         context='BuildChoice V3：本轮缺少可核验的 Hook 身份，确认记录必须保持未核验；不阻塞原编程任务。'
     return {'hookSpecificOutput':{'hookEventName':'UserPromptSubmit','additionalContext':context}}

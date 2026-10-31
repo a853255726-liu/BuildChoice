@@ -37,6 +37,8 @@ coverage 最多六项，每项理由最多 300 字符，状态为 resolved / can
 
 ## 数据与升级
 
+0.9 增加 memory.v1 项目决策记忆与 Candidate.memory_intent（reuse / change / uncertain，缺省 uncertain）。仅明确适用的当前长期规则可复用，Decision.memory 保存原确认来源；project_rule_reused 不生成本任务确认。敏感行为、冲突、改义、变化来源或意图改变继续核实，记忆状态纳入筛选快照。管理动作只接受真实 Hook 整条命令，旧历史保留。见[决策记忆](DECISION_MEMORY.md)。
+
 coverage 复用事件表，不增加数据库版本。旧审计、确认及事件保留，已移除的模型历史字段不出现在当前响应中。旧模型设置可读为新的 V3 开关和有效期，写入时使用 config_version=2。
 
-提取提示版本 `candidate-extractor-v3.3`。开发示例不是独立评测；规则与模拟 Hook 检查不能证明真实任务漏问率降低，真实宿主验收应另行报告。
+提取提示版本 `candidate-extractor-v3.5`。开发示例不是独立评测；规则与模拟 Hook 检查不能证明真实任务漏问率降低，真实宿主验收应另行报告。

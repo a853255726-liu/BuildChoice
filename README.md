@@ -105,6 +105,7 @@ python scripts/buildchoice_audit.py --workspace /absolute/path/to/your-project s
 
 ## 文档
 
+- [项目决策记忆与遗忘](docs/DECISION_MEMORY.md)：自动保存已确认选择为参考，明确标记为长期规则，普通参考 30 天后归档，支持遗忘与恢复。
 - [决策卡使用说明](docs/DECISION_GUIDANCE.md)
 - [决策落实验证与示例](docs/DECISION_VERIFICATION.md)
 - [名称与升级说明](docs/UPGRADING.md)

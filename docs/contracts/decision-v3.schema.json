@@ -87,6 +87,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "memory_intent": {"enum": ["reuse", "change", "uncertain"]},
         "candidate_id": {
           "type": "string",
           "minLength": 1,
@@ -402,6 +403,18 @@
         "blocked_steps"
       ]
     },
+    "MemoryMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"enum": ["applicable", "conflict", "reference_only"]},
+        "memory_ids": {"type": "array", "items": {"type": "string", "pattern": "^M[0-9A-F]{12}$"}, "minItems": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "choice_id": {"enum": ["A", "B", "C"]},
+        "source_confirmation_id": {"type": "string", "minLength": 1}
+      },
+      "required": ["status", "memory_ids", "reason"]
+    },
     "Decision": {
       "type": "object",
       "additionalProperties": false,
@@ -461,6 +474,7 @@
             }
           ]
         },
+        "memory": {"$ref": "#/$defs/MemoryMatch"},
         "confirmation_status": {
           "type": "string",
           "minLength": 1,

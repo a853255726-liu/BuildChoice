@@ -7,6 +7,7 @@ from .decision_cards import make_card
 from .decision_contracts import validate
 from .decision_settings import read as read_settings
 from .decision_store import DecisionStore,canonical_prompt,fingerprint
+from . import decision_memory as memory
 
 
 class DecisionService:
@@ -99,7 +100,9 @@ class DecisionService:
                 sources[source_id]=None if row is None else {'locator':row['locator'],'digest':row['digest'],
                     'origin':row['origin'],'file':file_state(row['locator'])}
         for resource in request.get('resources',[]):file_state(resource['path'])
-        return {'sources':sources,'files':files}
+        with store.connect() as db:
+            memories=memory.signature(store,db) if request.get('session_handle') else []
+        return {'sources':sources,'files':files,'memory':memories}
 
     def screen_snapshot(self, store, task_id, inputs):
         items=[{key:row[key] for key in ('id','revision','candidate_json','routing_json')} |
@@ -144,10 +147,28 @@ class DecisionService:
                         not set(candidate['risk_flags']).issubset(old['risk_flags']) or old_evidence['invalid']):
                     confirmation=None
             policy=route(candidate,ev,confirmation,next_step=request['next_step'])
+            with store.connect() as db:
+                recalled=memory.match_candidate(store,db,candidate,task['id']) if request.get('session_handle') else None
+            if recalled and recalled['status']=='applicable' and ev['applicable_constraint']:
+                chosen=next(o for o in candidate['options'] if o['id']==recalled['choice_id'])
+                if any(encode(v)!=memory.choice_value(chosen) for v in ev['observed_values']):
+                    recalled={'status':'conflict','memory_ids':recalled['memory_ids'],
+                        'reason':'PROJECT_RULE_CONFLICTS_WITH_SOURCE'}
+            reused=False
+            if recalled and not confirmation:
+                if recalled['status'] in ('conflict','reference_only'):
+                    policy={'status':'DEFER' if policy['effective_dependency']=='no' else 'ASK_NOW',
+                        'reason_codes':[recalled['reason']],'effective_dependency':policy['effective_dependency']}
+                elif (recalled['status']=='applicable' and not (ev['invalid'] or ev['conflict'] or ev['unread'])):
+                    policy={'status':'PROCEED','reason_codes':['PROJECT_MEMORY_RULE'],
+                        'effective_dependency':policy['effective_dependency']}
+                    reused=True
             result={'decision_id':'pending','candidate_ids':candidate['_candidate_ids'],'field':candidate['field'],'revision':1,
                     'status':policy['status'],'reason_codes':policy['reason_codes'],'evidence_status':ev['status'],
                     'card':None,
                     'confirmation_status':'user_message_observed' if confirmation else 'awaiting_user' if task['binding_status']=='hook_observed' else 'agent_reported_unverified'}
+            if recalled:result['memory']=recalled
+            if reused:result['confirmation_status']='project_rule_reused'
             ident,revision=store.save_item(task['id'],key,candidate,result,prior)
             if prior and prior['state']=='confirmed' and confirmation is None and revision==prior['revision']:
                 revision+=1;result['revision']=revision
@@ -184,7 +205,7 @@ class DecisionService:
         store=self.store()
         if task_id:
             task=store.task(task_id,self.owner,session_handle)
-            return {'enabled':True,**store.status(task,self.owner)}
+            return {'enabled':True,**self.task_status(store,task)}
         with store.connect() as db:
             ctx=store.context(db,session_handle,self.owner,claim=True)
             if ctx:
@@ -193,7 +214,32 @@ class DecisionService:
             else:tasks=[dict(r) for r in db.execute("SELECT * FROM decision_v3_tasks WHERE owner=? AND binding_status='unverified' ORDER BY created",(self.owner,))]
         return {'schema_version':'decision.v3','enabled':True,'mode':'pilot',
                 'binding_status':'hook_observed' if ctx else 'unverified',
-                'tasks':[store.status(task,self.owner) for task in tasks],'does_not_authorize_host_operations':True}
+                'tasks':[self.task_status(store,task) for task in tasks],
+                'project_memory':self.memory('',False,session_handle) if ctx else None,
+                'does_not_authorize_host_operations':True}
+
+    def memory(self, query='', include_archived=False, session_handle=None):
+        store=self.store()
+        with store.connect() as db:
+            if store.context(db,session_handle,self.owner,claim=True) is None:
+                raise ValueError('Project memory requires a current observed Hook context')
+            return memory.recall(store,db,query,include_archived)
+
+    def task_status(self, store, task):
+        result=store.status(task,self.owner)
+        items={r['id']:r for r in store.items(task['id'])}
+        with store.connect() as db:
+            for item in result['decisions']:
+                if item['confirmation_status']!='project_rule_reused':continue
+                candidate=json.loads(items[item['decision_id']]['candidate_json'])
+                current=memory.match_candidate(store,db,candidate,task['id'])
+                evidence=self.evidence(store,candidate,[])
+                if current!=item.get('memory') or evidence['invalid'] or evidence['conflict']:
+                    item.update(status='DEFER' if candidate['current_dependency']=='no' else 'ASK_NOW',
+                        confirmation_status='project_rule_stale',card=None,
+                        reason_codes=['REUSED_RULE_NO_LONGER_CURRENT_RESCREEN_REQUIRED'])
+                    item['needs_recheck']=True
+        return result
 
     def prepare_revision(self, task_id, decision_id, revision, candidate, reason, session_handle=None):
         validate('Candidate',candidate)

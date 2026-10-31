@@ -43,7 +43,7 @@ def main():
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         elif decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory')]
         return tools
 
     async def notify_tool_changes():
@@ -127,6 +127,17 @@ def main():
         """
         require_enabled()
         return decisions.activate(task_id,decision_id,revision,idempotency_key,session_handle)
+
+    @server.tool(annotations=annotation,structured_output=True)
+    def buildchoice_memory(query: str = '', include_archived: bool = False,
+                           session_handle: str | None = None) -> dict[str,Any]:
+        """Recall project-local observed decisions across chats with a fresh Hook handle.
+        Read before extracting candidates. References are suggestions; only explicitly pinned
+        current rules may apply. Lists origin, conflicts and exact user lifecycle commands.
+        A read never renews retention, promotes rules or creates confirmations. No host permission.
+        """
+        require_enabled()
+        return decisions.memory(query,include_archived,session_handle)
 
     @server.tool(annotations=annotation,structured_output=True)
     def buildchoice_decision_status(task_id: str | None = None, session_handle: str | None = None) -> dict[str,Any]:

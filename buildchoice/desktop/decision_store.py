@@ -188,6 +188,9 @@ class DecisionStore:
                             'reason':'EXPLICIT_CHOICE_REQUIRED','delivery_status':'not_observed'}
                         self.event(db,row['task_id'],'USER_REPLY_NOT_AUTOCONFIRMED',{'decision_id':row['id'],'prompt_digest':prompt_hash})
             handle='buildchoice-v3-ctx-'+secrets.token_urlsafe(24)
+            if active is None:
+                from .decision_memory import observe_command
+                outcome.update(observe_command(self,db,prompt,turn_hash) or {})
             db.execute('INSERT INTO decision_v3_contexts VALUES(?,?,?,?,?,?,?,?,?)',
                        (handle,str(self.workspace),session_hash,turn_hash,prompt_hash,time.time()+self.ttl,None,linked_task,encode(outcome)))
             return {'status':'observed','session_handle':handle,**outcome}
@@ -368,6 +371,7 @@ class DecisionStore:
             if field_key(candidate['field'])!=row['field_key']:raise ValueError('A revision must preserve decision identity')
             next_revision=revision+1
             result=json.loads(row['routing_json']);result.update(revision=next_revision,status='ASK_NOW',reason_codes=['REVISION_REQUIRES_NEW_USER_CHOICE'],confirmation_status='awaiting_user')
+            result.pop('memory',None)
             for name in ('model_status','model_fields'):result.pop(name,None)
             result['card']=make_card(decision_id,next_revision,candidate,{'effective_dependency':candidate['current_dependency']})
             db.execute("UPDATE decision_v3_items SET state='superseded' WHERE id=? AND revision=?",(decision_id,revision))

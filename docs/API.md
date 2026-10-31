@@ -1,5 +1,7 @@
 # BuildChoice · MCP 与审计接口
 
+0.9 新增 `buildchoice_memory(query="", include_archived=false, session_handle)`，需当前有效 Hook 句柄，返回 memory.v1、最多 30 条参考/规则及来源、生命周期、冲突、截断信息和精确管理命令。只读不续期；无 Agent 写入或批量升级确认的接口。详见[决策记忆](DECISION_MEMORY.md)。Decision 可附 memory 匹配来源；project_rule_reused 不等于本任务的用户确认。状态查询会重算已复用规则的有效性。
+
 V3 关键决策引导见 [使用说明](DECISION_GUIDANCE.md) 与 [decision.v3 Schema](contracts/decision-v3.schema.json)。以下 audit.v1 接口签名不变。
 
 ## 1. 创建任务

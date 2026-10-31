@@ -28,6 +28,8 @@ def deduplicate(candidates):
             order.append(key)
             continue
         prior = result[key]
+        if prior.get('memory_intent','uncertain')!=original.get('memory_intent','uncertain'):
+            prior['memory_intent']='uncertain'
         if prior['options'] != original['options']:
             raise ValueError('Same decision has conflicting option definitions; reconcile before screening')
         prior['_candidate_ids'].append(original['candidate_id'])

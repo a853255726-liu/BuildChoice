@@ -22,6 +22,7 @@ Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配�
 
 ## 模块边界
 
+- `decision_memory.py`：从真实 Hook 确认派生项目参考；管理动作作为 MEMORY_ACTION_OBSERVED 事件保存，跨聊天检索不扩大原任务访问权限。普通参考 30 天后归档，长期规则需整条用户命令标记；记忆不生成新确认或操作许可。
 - `settings.py`：Prompt-first / off；`decision_settings.py`：独立 V3 试用设置。
 - `prompt_policy.py` / `decision_hook.py`：澄清原则、工作区范围与真实消息回调。
 - `candidate_policy.py`：候选去重、证据/风险/依赖规则及排序。

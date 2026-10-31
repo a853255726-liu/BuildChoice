@@ -28,6 +28,8 @@ jobs:
         run: python -m unittest discover -s checks -p test_guidance.py -v
       - name: Message binding, cache freshness and atomic recovery
         run: python -m unittest discover -s checks -p test_screen_recovery.py -v
+      - name: Cross-chat decision memory and recoverable forgetting
+        run: python -m unittest discover -s checks -p test_decision_memory.py -v
 
   offline-and-browser:
     name: Unit, MCP, packaging and browser behavior

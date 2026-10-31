@@ -64,7 +64,7 @@ try:
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
     names={t['name'] for t in send('tools/list',{})['tools']}
-    assert len(names)==14,names
+    assert len(names)==15,names
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
     assert native['values']['mode']=='Prompt 优先'
@@ -143,10 +143,28 @@ try:
     (workspace/'profile.py').write_text('def can_read(owner, viewer): return True\n',encoding='utf-8')
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert not status['verification']['verifications'][0]['current_pass']
+    memories=call('buildchoice_memory',{'query':'Profile','session_handle':confirmed})
+    entry=memories['entries'][0]
+    assert entry['tier']=='reference' and entry['provenance']=='user_message_observed'
+    def memory_hook(prompt,turn,session='mcp-smoke'):
+        return re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,
+            'session_id':session,'turn_id':turn,'prompt':prompt}))[0]
+    confirmed=memory_hook('长期记住 '+entry['memory_id'],'3')
+    assert call('buildchoice_memory',{'session_handle':confirmed})['entries'][0]['tier']=='rule'
+    fresh=memory_hook('查找历史决定','2','other-smoke-session')
+    assert call('buildchoice_memory',{'session_handle':fresh})['entries'][0]['confirmation_id']==entry['confirmation_id']
+    cross_task=send('tools/call',{'name':'buildchoice_decision_status','arguments':{'task_id':response['task_id'],'session_handle':fresh}})
+    assert cross_task.get('isError'),cross_task
+    fresh=memory_hook('遗忘 '+entry['memory_id'],'3','other-smoke-session')
+    assert call('buildchoice_memory',{'session_handle':fresh})['entries']==[]
+    assert call('buildchoice_memory',{'session_handle':fresh,'include_archived':True})['entries'][0]['state']=='forgotten'
+    fresh=memory_hook('恢复 '+entry['memory_id'],'4','other-smoke-session')
+    assert call('buildchoice_memory',{'session_handle':fresh})['entries'][0]['tier']=='rule'
     call('buildchoice_decision_prepare_revision',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'candidate':candidate(),'reason':'Changed access rule','session_handle':confirmed})
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert 'DECISION_REVISION_CHANGED' in status['implementations'][0]['reason_codes']
+    assert call('buildchoice_memory',{'session_handle':confirmed})['entries']==[]
     rejected=send('tools/call',{'name':'buildchoice_verify_decision','arguments':verify_args})
     assert rejected.get('isError'),rejected
 
@@ -156,15 +174,17 @@ try:
     assert not call('buildchoice_decision_status',{})['enabled']
     blocked=send('tools/call',{'name':'buildchoice_audit_start','arguments':{'title':'Blocked','task':'No write'}})
     assert blocked.get('isError'),blocked
+    assert send('tools/call',{'name':'buildchoice_memory','arguments':{'session_handle':fresh}}).get('isError')
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':[],'idempotency_key':'off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
     call('buildchoice_settings_update',{'set':{'mode':'Prompt 优先','decision_guidance':'关闭'}})
     assert len(send('tools/list',{})['tools'])==8
+    assert send('tools/call',{'name':'buildchoice_memory','arguments':{'session_handle':fresh}}).get('isError')
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':conditions['criteria'],'idempotency_key':'pilot-off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
-    print('PASS actual MCP initialize, 14 tools, settings, audit, synthetic Hook confirmation, acceptance, explicit CLI execution, verification, stale results and off/pilot-off behavior')
+    print('PASS actual MCP initialize, 15 tools, settings, audit, synthetic Hook confirmation, acceptance, explicit CLI execution, verification, stale results and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)
