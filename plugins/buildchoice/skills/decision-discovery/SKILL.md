@@ -17,7 +17,7 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 理解原始任务并实际读取直接相关的项目约束。使用已有审计读取器取得 source_id；未读文件列为 resources，不写成已核实证据。
 
-按 [候选规则](references/candidate-rules.md) 的五类清单和四道门槛检查。需要辨别边界时参考 [开发正反例](references/examples.jsonl)，不将其当作当前任务事实。
+按 [候选规则](references/candidate-rules.md) 的五类清单和四道门槛检查。借鉴结构化覆盖扫描：先根据本轮实际开发行为，从 [场景化探针](references/scenario-probes.md) 中选择最多两类相关视角，再在同一次提取中判断是否存在实质用户选择。场景、维度均非追问配额；简单可逆修改无需加载专项视角。需要辨别边界时参考 [开发正反例](references/examples.jsonl)，所有例子仅用于理解判断标准，不是当前任务事实。
 
 你是候选产品决策提取器，不是最终追问者。只保留选项差异具有实质后果、应由用户决定、尚无适用答案、与当前工作相关的候选。每项说明需要确定的字段、具体影响、决策归属、证据状态、当前依赖和风险。允许空数组，不补造字段，不丢弃相关材料。在同一次提取中附简短 coverage 依据；不增加第二轮复核、额外模型调用或独立审查步骤。
 
@@ -60,7 +60,7 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 ## 按需验证决定是否落实
 
-对当前任务中已由 Hook 确认、且有可验证行为的重要决定，可在原有开发/测试流程内调用 `buildchoice_acceptance_prepare`。只用当前 decision_id、revision 和真实句柄；条件含 criterion_id、description、basis、required、evidence_type="behavior" 与实际 test_ids。条件是你的推导，不是用户逐项确认；若引入新的产品行为或扩大范围，回到已有决策流程，不能将推导当授权。
+对当前任务中已由 Hook 确认、且有可验证行为的重要决定，可在原有开发/测试流程内调用 `buildchoice_acceptance_prepare`。只用当前 decision_id、revision 和真实句柄；条件含 criterion_id、description、basis、required、evidence_type="behavior" 与实际 test_ids。条件是你的推导，不是用户逐项确认；若引入新的产品行为或扩大范围，回到已有决策流程，不能将推导当授权。逐项检查该条件是否直接源于所选方案，在 basis 说明依据；想出至少一个会违反条件的具体反例，并尽可能使用可区分正确实现与错误实现的行为测试。没有独立参考或人工复核时，不得将「Agent 推导条件 + Agent 编写测试」包装成独立的需求正确性证明。
 
 明确列出相关实现、测试、fixture、配置和依赖组成的输入清单。复用已授权的原生命令执行路径显式运行 `scripts/buildchoice_run_verification.py`，固定适配器 python-unittest-v1，test_ids 使用 buildchoice_tests 模块下的真实用例 ID。命令会执行项目代码，遵守宿主既有权限；不因 Skill 而新增授权，不让 MCP 自动运行，也不假设任意现有报告可信。没有合适测试或运行权限时照实保留缺口，不为了拿到通过而制造无意义断言。
 
@@ -68,4 +68,4 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 完成代码及行为测试后，可调用 `buildchoice_verify_decision`，传当前 acceptance_id、采集 execution_id、真实代码来源引用和新幂等键。缺少实际执行只能 inconclusive；静态绑定不等于行为验证。查询 status 的 verification 时同时检查 verdict、applicability、current_pass 和范围；历史 passed 且 stale 不能说当前已通过。决策/条件/声明输入/证据改变后，仅在相关任务或用户需要时重做，不在每次工具调用后自动验证，不增加无条件阻塞或独立验证 Agent。
 
-任务结束时简要说明相关的未决选择、当前验证结果及仍缺的证据。不要把全部账本和内部覆盖记录倾倒给用户。
+任务结束时如本轮确实涉及决策，只用简短中文摘要交代「用户已确认的选择」「当前落实验证结果」「仍需处理的缺口」，优先解释用户能感知的产品行为。仅 current_pass=true 可写「相关声明范围内的行为测试通过」，必须保留范围限制；历史 passed 但 stale、仅文件关联、无测试或 inconclusive 均不能写已验证。默认不展示 task_id、acceptance_id、execution_id、原始账本 JSON 和内部调用步骤，除非用户主动要求。没有决策则正常结束，不强制输出摘要。
