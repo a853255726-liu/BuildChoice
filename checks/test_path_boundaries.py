@@ -19,6 +19,9 @@ class PathBoundaryTests(unittest.TestCase):
         base=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir()))
         self.workspace=base/('buildchoice-paths-'+uuid.uuid4().hex)
         self.workspace.mkdir()
+        # Windows CI TEMP may use an 8.3 alias; match Ledger's canonical root
+        # before mocking resolution so the intended private-path branch is exercised.
+        self.workspace=self.workspace.resolve()
         self.ledger=Ledger(self.workspace)
         self.session=self.ledger.start('Boundary regression','Synthetic files only')['id']
         self.target=self.workspace/'.aws';self.target.mkdir()
