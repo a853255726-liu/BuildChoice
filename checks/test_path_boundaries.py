@@ -34,7 +34,8 @@ class PathBoundaryTests(unittest.TestCase):
         env={**os.environ,'BUILDCHOICE_TEST_LINK':str(alias),'BUILDCHOICE_TEST_TARGET':str(target)}
         subprocess.run(['powershell.exe','-NoLogo','-NoProfile','-NonInteractive','-Command',
             'New-Item -ItemType Junction -Path $env:BUILDCHOICE_TEST_LINK -Target $env:BUILDCHOICE_TEST_TARGET -ErrorAction Stop | Out-Null'],
-            env=env,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,check=True,timeout=10)
+            # Hosted Windows runners can take over 10s to cold-start PowerShell.
+            env=env,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,check=True,timeout=30)
 
     def test_ordinary_file_is_read_and_private_names_are_still_excluded(self):
         self.assertEqual(self.ledger.read(self.session,'public/example.txt')['content'],'PUBLIC_FIXTURE')
