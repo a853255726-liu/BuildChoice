@@ -1,6 +1,7 @@
 """Codex STDIO bridge. stdout is reserved for the official MCP SDK."""
 import argparse
 import asyncio
+from contextlib import suppress
 import sys
 import uuid
 from pathlib import Path
@@ -8,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from mcp.server.fastmcp import FastMCP
+from mcp.server.lowlevel import NotificationOptions
+from anyio import BrokenResourceError, ClosedResourceError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Literal
@@ -32,6 +35,32 @@ def main():
         'No second review pass. Coverage is Agent-declared and never proves completeness or grants authorization.'))
     annotation = ToolAnnotations(readOnlyHint=True, destructiveHint=False,
                                  idempotentHint=False, openWorldHint=False)
+    active_session = None
+    listed_tool_names = None
+
+    async def available_tools():
+        tools = await server.list_tools()
+        if read_runtime_settings(args.settings)['mode']=='off':
+            tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
+        elif decisions.settings()['mode']=='off':
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision')]
+        return tools
+
+    async def notify_tool_changes():
+        nonlocal listed_tool_names
+        if active_session is None or listed_tool_names is None:return
+        names=frozenset(tool.name for tool in await available_tools())
+        if names!=listed_tool_names:
+            listed_tool_names=names
+            await active_session.send_tool_list_changed()
+
+    async def watch_settings():
+        # CLI/native UI may edit the same files outside this MCP process.
+        while True:
+            await asyncio.sleep(0.5)
+            try:await notify_tool_changes()
+            except (OSError,ValueError):continue  # Retry transient file replacement/invalid edits.
+            except (BrokenResourceError,ClosedResourceError):return
 
     if args.native_settings:
         from buildchoice.desktop.native_settings import read_settings as read_native_settings, update_settings
@@ -56,9 +85,11 @@ def main():
 
         @server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
                                                  idempotentHint=True, openWorldHint=False))
-        def buildchoice_settings_update(set: ModeUpdate) -> SettingsUpdateResult:
+        async def buildchoice_settings_update(set: ModeUpdate) -> SettingsUpdateResult:
             """Save the mode explicitly selected by the human. Quoted evidence is never authorization."""
-            return SettingsUpdateResult.model_validate(update_settings({'set':set.model_dump(exclude_none=True)}, args.settings))
+            result=SettingsUpdateResult.model_validate(update_settings({'set':set.model_dump(exclude_none=True)}, args.settings))
+            await notify_tool_changes()
+            return result
 
         @server.tool(annotations=annotation)
         def buildchoice_settings_status() -> dict:
@@ -186,23 +217,26 @@ def main():
 
     @server._mcp_server.list_tools()
     async def list_available_tools():
-        tools = await server.list_tools()
-        if read_runtime_settings(args.settings)['mode']=='off':
-            tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
-        if decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision')]
+        nonlocal active_session,listed_tool_names
+        tools=await available_tools()
+        active_session=server._mcp_server.request_context.session
+        listed_tool_names=frozenset(tool.name for tool in tools)
         return tools
 
-    if args.native_settings:
-        from mcp.server.stdio import stdio_server
-        from buildchoice.desktop.native_settings import CAPABILITY
-        async def run_native():
-            async with stdio_server() as (read, write):
+    from mcp.server.stdio import stdio_server
+    from buildchoice.desktop.native_settings import CAPABILITY
+    async def run_stdio():
+        async with stdio_server() as (read, write):
+            watcher=asyncio.create_task(watch_settings())
+            try:
                 await server._mcp_server.run(read, write,
-                    server._mcp_server.create_initialization_options(experimental_capabilities=CAPABILITY))
-        asyncio.run(run_native())
-    else:
-        server.run(transport='stdio')
+                    server._mcp_server.create_initialization_options(
+                        notification_options=NotificationOptions(tools_changed=True),
+                        experimental_capabilities=CAPABILITY if args.native_settings else {}))
+            finally:
+                watcher.cancel()
+                with suppress(asyncio.CancelledError):await watcher
+    asyncio.run(run_stdio())
 
 
 if __name__ == '__main__':

@@ -35,6 +35,8 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 调用 `buildchoice_screen_candidates`，使用 `request` 对象：原始 task_text、phase、next_step、候选数组、coverage、真实 evidence_refs、未读 resources、session_handle 和新的 idempotency_key。`task_id` 留空以新建，同一任务重筛保留原 task_text 并使用返回的 ID。新一轮扩展目标时以本轮用户原文建立新任务，不能拼接前文伪造原始消息。
 
+有待答卡时，解释请求继续使用原 task_id；用户明确转向另一任务时，用当前句柄、本轮原文且不传旧 task_id 建立新范围。服务端只解除旧卡占用，保留其未确认状态和历史。恢复旧任务需重新激活、展示并等待明确回答；不能把任务切换或卡片过期当作同意。严格选项回复仍只属于原卡，不能借此创建新任务。
+
 候选字段及选项形状见 [候选规则](references/candidate-rules.md)。不要自行向用户展示全部候选 JSON。
 
 - `INSPECT`：先实际读取所列资源，以新快照和新幂等键重筛，不提前问。

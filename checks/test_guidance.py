@@ -5,7 +5,9 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 import unittest
+from unittest.mock import patch
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -150,6 +152,70 @@ class GuidanceTests(unittest.TestCase):
         status=self.service.status(response['task_id'],confirmed['session_handle'])
         self.assertEqual(status['decisions'][0]['status'],'ASK_NOW')
         self.assertTrue(status['decisions'][0]['needs_recheck'])
+
+    def test_expired_card_releases_slot_without_confirming_old_choice(self):
+        handle=self.context()
+        first=self.service.screen(self.request(session_handle=handle));item=first['decisions'][0]
+        self.service.activate(first['task_id'],item['decision_id'],1,'activate',handle)
+        store=DecisionStore(self.workspace)
+        with patch('buildchoice.desktop.decision_store.time.time',return_value=time.time()+901):
+            reply=store.observe_hook({**self.event,'turn_id':'2','prompt':'A'})
+            self.assertEqual(reply['confirmation_status'],'not_confirmed')
+            next_event={**self.event,'turn_id':'3','prompt':'Implement invoice access'}
+            next_handle=store.observe_hook(next_event)['session_handle']
+            second=self.service.screen(self.request(task_text=next_event['prompt'],session_handle=next_handle))
+            self.service.activate(second['task_id'],second['decisions'][0]['decision_id'],1,'new-card',next_handle)
+            prior=self.service.status(first['task_id'],next_handle)
+        self.assertEqual(prior['confirmation_history'],[])
+        self.assertEqual(prior['decisions'][0]['state'],'screened')
+
+    def test_activation_cleans_expired_slot_even_without_another_hook(self):
+        first=self.service.screen(self.request());item=first['decisions'][0]
+        self.service.activate(first['task_id'],item['decision_id'],1,'activate')
+        second=self.service.screen(self.request(task_text='Implement invoice access'))
+        new_item=second['decisions'][0]
+        with self.assertRaisesRegex(ValueError,'Another card is already active'):
+            self.service.activate(second['task_id'],new_item['decision_id'],1,'blocked')
+        with patch('buildchoice.desktop.decision_store.time.time',return_value=time.time()+901):
+            self.service.activate(second['task_id'],new_item['decision_id'],1,'activate-new')
+        self.assertEqual(self.service.status(first['task_id'])['confirmation_history'],[])
+
+    def test_new_observed_scope_suspends_pending_card_and_can_resume_it(self):
+        handle=self.context()
+        first=self.service.screen(self.request(session_handle=handle));item=first['decisions'][0]
+        self.service.activate(first['task_id'],item['decision_id'],1,'activate',handle)
+        store=DecisionStore(self.workspace)
+        event={**self.event,'turn_id':'2','prompt':'先放下用户资料，改做发票功能'}
+        next_handle=store.observe_hook(event)['session_handle']
+        # A fabricated new scope cannot consume the context or clear the old card.
+        with self.assertRaises(ValueError):
+            self.service.screen(self.request(task_text='Not the user message',session_handle=next_handle))
+        self.assertEqual(self.service.status(first['task_id'],next_handle)['decisions'][0]['state'],'needs_explanation')
+        second=self.service.screen(self.request(task_text=event['prompt'],session_handle=next_handle))
+        self.assertNotEqual(first['task_id'],second['task_id'])
+        self.assertEqual(self.service.status(first['task_id'],next_handle)['confirmation_history'],[])
+        self.service.activate(second['task_id'],second['decisions'][0]['decision_id'],1,'new-card',next_handle)
+        answer=store.observe_hook({**self.event,'turn_id':'3','prompt':'A'})
+        self.assertEqual(answer['decision_id'],second['decisions'][0]['decision_id'])
+        # The suspended decision remains unconfirmed and can be explicitly shown again.
+        self.service.activate(first['task_id'],item['decision_id'],1,'resume-card',answer['session_handle'])
+        resumed=store.observe_hook({**self.event,'turn_id':'4','prompt':'B'})
+        self.assertEqual(resumed['decision_id'],item['decision_id'])
+        self.assertEqual(resumed['choice_id'],'B')
+
+    def test_discussion_preserves_card_and_strict_choice_cannot_become_new_scope(self):
+        handle=self.context()
+        first=self.service.screen(self.request(session_handle=handle));item=first['decisions'][0]
+        self.service.activate(first['task_id'],item['decision_id'],1,'activate',handle)
+        store=DecisionStore(self.workspace)
+        reply=store.observe_hook({**self.event,'turn_id':'2','prompt':'解释一下'})
+        prior=self.service.status(first['task_id'],reply['session_handle'])
+        self.assertEqual(prior['decisions'][0]['state'],'needs_explanation')
+        self.assertEqual(prior['confirmation_history'],[])
+        answered=store.observe_hook({**self.event,'turn_id':'3','prompt':'A'})
+        with self.assertRaises(ValueError):
+            self.service.screen(self.request(task_text='A',session_handle=answered['session_handle']))
+        self.assertEqual(self.service.status(first['task_id'],answered['session_handle'])['confirmation_history'][0]['choice_id'],'A')
 
     def test_four_routes_use_evidence_and_dependency(self):
         self.assertEqual(route(candidate(),{})['status'],'ASK_NOW')

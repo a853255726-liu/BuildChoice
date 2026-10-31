@@ -92,19 +92,19 @@ def probe_mcp(python, runtime, workspace, timeout):
 def probe_host(workspace, marketplace):
     """Only plugin/read and hooks/list; never install, reconcile, or trust hooks."""
     from openai_codex.client import CodexClient,CodexConfig
-    from openai_codex.generated.v2_all import PluginReadResponse,HooksListResponse
+    from openai_codex.generated.v2_all import PluginReadResponse,HooksListResponse,HookEventName
     with CodexClient(CodexConfig(cwd=str(workspace))) as client:
         client.initialize()
         plugin=client.request('plugin/read',{'pluginName':'buildchoice','marketplacePath':str(marketplace)},
                               response_model=PluginReadResponse).plugin
         listing=client.request('hooks/list',{'cwds':[str(workspace)]},response_model=HooksListResponse)
-    keys={hook.key for hook in plugin.hooks if hook.event_name.value=='UserPromptSubmit'}
+    keys={hook.key for hook in plugin.hooks if hook.event_name==HookEventName.user_prompt_submit}
     matching=[]
     for entry in listing.data:
         if Path(entry.cwd).resolve()!=Path(workspace).resolve():continue
         for wrapped in entry.hooks:
             hook=wrapped.root
-            if hook.key in keys and hook.plugin_id==plugin.summary.id and hook.event_name.value=='UserPromptSubmit':
+            if hook.key in keys and hook.plugin_id==plugin.summary.id and hook.event_name==HookEventName.user_prompt_submit:
                 matching.append({'enabled':hook.enabled,'trust_status':hook.trust_status.value})
     return {'installed':plugin.summary.installed,'enabled':plugin.summary.enabled,
             'server_declared':'buildchoice' in plugin.mcp_servers,'hooks':matching}

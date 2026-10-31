@@ -89,6 +89,18 @@ class DecisionStore:
         db.execute('INSERT INTO decision_v3_events(task_id,event_type,data_json,created) VALUES(?,?,?,?)',
                    (task_id,kind,encode(data),now()))
 
+    def release_active(self, db, active, reason):
+        """Release only the pending slot; never infer a choice or discard history."""
+        row=db.execute('SELECT * FROM decision_v3_items WHERE id=? AND revision=?',
+                       (active['decision_id'],active['revision'])).fetchone()
+        db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE workspace=? AND host_session_digest=?',
+                   (active['workspace'],active['host_session_digest']))
+        if row:
+            db.execute("UPDATE decision_v3_items SET state='screened' WHERE id=? AND revision=? AND state IN ('card_active','needs_explanation')",
+                       (row['id'],row['revision']))
+            self.event(db,row['task_id'],'CARD_RELEASED',{'decision_id':row['id'],
+                'revision':row['revision'],'reason':reason,'confirmation_status':'not_confirmed'})
+
     def observe_hook(self, event):
         if event.get('hook_event_name') != 'UserPromptSubmit': return None
         cwd=event.get('cwd'); session=event.get('session_id'); turn=event.get('turn_id'); prompt=event.get('prompt')
@@ -113,6 +125,7 @@ class DecisionStore:
                 row=db.execute('SELECT * FROM decision_v3_items WHERE id=? AND revision=?',(active['decision_id'],active['revision'])).fetchone()
                 latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(active['decision_id'],)).fetchone()[0]
                 if active['expires']<time.time() or row is None or latest!=active['revision']:
+                    self.release_active(db,active,'EXPIRED_OR_SUPERSEDED_CARD')
                     outcome={'confirmation_status':'not_confirmed','reason':'EXPIRED_OR_SUPERSEDED_CARD'}
                 else:
                     card=json.loads(row['routing_json'])['card']; text=prompt.strip()
@@ -179,7 +192,17 @@ class DecisionStore:
                 if ctx['task_id']:
                     row=db.execute('SELECT * FROM decision_v3_tasks WHERE id=?',(ctx['task_id'],)).fetchone()
                     if row and row['task_digest']==message_digest(task_text): return dict(row)
-                    raise ValueError('Hook context cannot be rebound to another task')
+                    # A non-option reply may be a new request. The Agent signals that
+                    # by opening a new scope with this exact observed message. Strict
+                    # choices/defer replies remain bound to their original task.
+                    outcome=json.loads(ctx['outcome_json'])
+                    if (outcome.get('confirmation_status')!='awaiting_user' or
+                            ctx['prompt_digest']!=message_digest(task_text)):
+                        raise ValueError('Hook context cannot be rebound to another task')
+                    active=db.execute('SELECT a.* FROM decision_v3_active a JOIN decision_v3_items i ON i.id=a.decision_id AND i.revision=a.revision '
+                        'WHERE a.workspace=? AND a.host_session_digest=? AND i.task_id=?',
+                        (str(self.workspace),ctx['host_session_digest'],ctx['task_id'])).fetchone()
+                    if active:self.release_active(db,active,'NEW_TASK_SCOPE')
                 if ctx['prompt_digest']!=message_digest(task_text): raise ValueError('Task does not match actual observed user input')
             else:
                 existing=db.execute('SELECT * FROM decision_v3_tasks WHERE owner=? AND task_digest=? AND host_session_digest=? ORDER BY created DESC LIMIT 1',
@@ -262,6 +285,9 @@ class DecisionStore:
             if result['status']!='ASK_NOW' or row['state'] in ('confirmed','superseded'):raise ValueError('Only unresolved ASK_NOW cards can activate')
             scope=task['host_session_digest'] or 'unverified:'+task['owner']
             active=db.execute('SELECT * FROM decision_v3_active WHERE workspace=? AND host_session_digest=?',(str(self.workspace),scope)).fetchone()
+            if active and active['decision_id'] and active['expires']<time.time():
+                self.release_active(db,active,'EXPIRED_CARD')
+                active=None
             if active and active['decision_id'] and (active['decision_id'],active['revision'])!=(decision_id,revision):
                 raise ValueError('Another card is already active in this host session')
             db.execute('INSERT INTO decision_v3_active VALUES(?,?,?,?,?,?) ON CONFLICT(workspace,host_session_digest) DO UPDATE SET decision_id=excluded.decision_id,revision=excluded.revision,expires=excluded.expires,delivery_status=excluded.delivery_status',

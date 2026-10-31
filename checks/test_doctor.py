@@ -3,11 +3,12 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 import uuid
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from buildchoice.desktop.doctor import diagnose,_run_json
+from buildchoice.desktop.doctor import diagnose,_run_json,probe_host
 
 
 class DoctorTests(unittest.TestCase):
@@ -64,6 +65,34 @@ class DoctorTests(unittest.TestCase):
             result=diagnose(self.home,host=True)
         self.assertEqual(result['overall'],'unverified')
         self.assertEqual(next(c['status'] for c in result['checks'] if c['name']=='hook_trust'),'unknown')
+
+    def test_host_probe_matches_sdk_event_enum_and_excludes_unrelated_hooks(self):
+        from openai_codex.generated.v2_all import HookEventName
+        plugin=SimpleNamespace(summary=SimpleNamespace(id='buildchoice@buildchoice-local',installed=True,enabled=True),
+            mcp_servers=['buildchoice'],hooks=[SimpleNamespace(key='prompt-key',event_name=HookEventName.user_prompt_submit)])
+        def hook(key='prompt-key',plugin_id=plugin.summary.id,event=HookEventName.user_prompt_submit):
+            return SimpleNamespace(root=SimpleNamespace(key=key,plugin_id=plugin_id,event_name=event,
+                enabled=True,trust_status=SimpleNamespace(value='trusted')))
+        listing=SimpleNamespace(data=[SimpleNamespace(cwd=str(self.workspace),hooks=[hook(),
+            hook(key='other'),hook(plugin_id='other-plugin'),hook(event=HookEventName.stop)]),
+            SimpleNamespace(cwd=str(ROOT),hooks=[hook()])])
+        with patch('openai_codex.client.CodexClient') as factory:
+            client=factory.return_value.__enter__.return_value
+            client.request.side_effect=[SimpleNamespace(plugin=plugin),listing]
+            result=probe_host(self.workspace,ROOT/'.claude-plugin/marketplace.json')
+        self.assertEqual(result['hooks'],[{'enabled':True,'trust_status':'trusted'}])
+        self.assertEqual([call.args[0] for call in client.request.call_args_list],['plugin/read','hooks/list'])
+
+    def test_diagnosis_reports_trusted_host_without_claiming_chat_callback(self):
+        self.bind()
+        observed={'installed':True,'enabled':True,'server_declared':True,
+                  'hooks':[{'enabled':True,'trust_status':'trusted'}]}
+        with patch('buildchoice.desktop.doctor.probe_python',return_value=self.deps),patch('buildchoice.desktop.doctor.probe_mcp',return_value={'server':'buildchoice','tools':['buildchoice_decision_status']}),patch('buildchoice.desktop.doctor._run_json',return_value=observed):
+            result=diagnose(self.home,host=True)
+        self.assertEqual(result['overall'],'pass')
+        self.assertEqual(next(c['status'] for c in result['checks'] if c['name']=='hook_trust'),'pass')
+        self.assertFalse(result['hook_trust_modified'])
+        self.assertIn('回调',result['scope'])
 
     def test_probe_timeout_is_bounded(self):
         import subprocess

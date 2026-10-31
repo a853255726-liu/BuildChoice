@@ -1,4 +1,4 @@
-# BuildChoice · 0.8.0 验证
+# BuildChoice · 0.8.1 验证
 
 安装根目录 requirements.txt 后执行：
 
@@ -8,6 +8,10 @@ python checks/smoke_mcp.py
 python checks/check_package.py
 python scripts/build_distribution.py
 ```
+
+0.8.1 回归新增真实 MCP `tools.listChanged` 能力与通知检查：从 V3 关闭的连接开启试用，原生设置立即通知，CLI 修改无需客户端请求即可触发通知；覆盖原生/普通 STDIO、重复设置、完全关闭及禁用调用边界。新增过期卡解除占用、新任务切换与旧卡恢复、解释/严格回复边界，以及真实 SDK `HookEventName.user_prompt_submit` 枚举匹配与无关 Hook 排除。宿主声明检查仍不代表实际聊天回调验收。
+
+2026-10-31 Windows 修复验证：Python 3.11.9 下 56 项单元/通知回归通过，真实 STDIO MCP 冒烟、源码/运行包初始化与行为采集验证、0.8.1 两份分发包生成通过。本机只读 doctor --host 检查确认插件启用、14 个本地 MCP 工具以及 Hook trusted；未将其当作修复版真实聊天发卡/回复闭环的验收。
 
 行为检查覆盖短句与承接请求的 Hook 句柄、关闭和工作区边界、零候选覆盖记录、来源绑定与文件变化、虚构来源、元数据不影响分流、幂等操作、明确选项确认与修订，以及旧设置和账本历史的读取。
 
