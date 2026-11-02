@@ -40,7 +40,7 @@ python scripts/buildchoice_settings.py off
 
 可以要求 Codex“列出这个任务已确认的选择及相关代码”。代码关联为可选功能，只接受当前真实已确认的决定，保存文件位置与哈希；修订或文件变化后提示复核。不要求每次开发登记，也不分析 Diff 或代码语义，不代表测试通过。
 
-需要检查是否落实时，由 Codex 使用原生测试并解释结果。BuildChoice 不默认启动独立验收/验证流程，原接口仅作为[可选实验](DECISION_VERIFICATION.md)保留，不提供独立需求认证。资料读取优先使用[真实工具读取记录](PROJECT_READS.md)。
+需要检查是否落实时，由 Codex 使用原生测试并解释结果。BuildChoice 不默认启动独立验收/验证流程，不提供独立需求认证。资料读取优先使用[真实工具读取记录](PROJECT_READS.md)。
 
 希望后续聊天继续参考已确认选择时，使用[项目决策记忆](DECISION_MEMORY.md)。遗忘会停止主动召回，原历史仍保留。
 
@@ -50,4 +50,4 @@ python scripts/buildchoice_settings.py off
 
 BuildChoice 的选择记录不替代 Codex 对文件、网络、发布或命令执行的权限审批。候选识别依赖当前 Agent 和已读取资料，不能保证发现所有重要选择。
 
-需要对接工具时，参见[MCP 接口](API.md)与[接口契约](DECISION_V3_CONTRACT.md)。
+需要对接工具时，参见[MCP 接口](API.md)。

@@ -86,6 +86,6 @@ task_text 保留实际用户正文；服务端只统一传输换行符和首尾�
 
 代码测试、验收和结果解释使用 Codex 原生能力及项目已有检查。按当前修改选择必要测试，报告实际运行结果和限制，不要求准备 BuildChoice 验收集合、运行专用采集器或调用验证 MCP。不将测试通过包装为 BuildChoice 对需求正确性的独立认证。
 
-buildchoice_acceptance_prepare、专用采集 CLI 和 buildchoice_verify_decision 仅作为兼容的可选实验保留；只有用户明确要求该实验时才按运行时 docs/DECISION_VERIFICATION.md 操作，不纳入默认流程。实验条件仍由 Agent 推导，历史结果与 current_pass=true 也只代表声明范围的检查结果。
+buildchoice_acceptance_prepare、专用采集 CLI 和 buildchoice_verify_decision 仅作为兼容的可选实验保留；只有用户明确要求该实验时才使用，不纳入默认流程。实验条件仍由 Agent 推导，历史结果与 current_pass=true 也只代表声明范围的检查结果。
 
 任务结束时正常说明改动、原生测试结果和实际缺口；如涉及决策可简短交代已确认选择，不强制输出关联或验证摘要，也不默认展示内部 ID。

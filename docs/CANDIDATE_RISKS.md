@@ -1,6 +1,6 @@
 # V3 候选校验、历史语义与工程风险
 
-本次实现基于 GitHub BuildChoice 的 0.10.1 提交 445bb407aef195c496435f54ab3dbfc2e4b70d73，保持 Codex + Skill + MCP + SQLite、现有稳定键和 Hook 回复解析。没有修改 Handle、任务生命周期、宿主审批或数据库表结构。
+候选校验沿用 Codex + Skill + MCP + SQLite 架构、稳定决策标识和 Hook 可信确认。
 
 ## 历史：检索与复用分开
 

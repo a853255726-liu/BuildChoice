@@ -17,7 +17,7 @@ BuildChoice 在开发过程中结合用户需求和现有项目资料，识别�
 - **按需追问与方案解释**：MCP 将候选分为 `ASK_NOW / INSPECT / DEFER / PROCEED`，优先读取已有信息；确需决定时，在原对话中逐项展示方案、利弊与建议。
 - **确认与可选代码关联**：通过 Codex Hook 记录用户选择和版本；有追溯需要时，为真实已确认的决策关联文件位置及哈希，不要求每次开发登记。
 - **项目决策记忆**：在同一项目的不同聊天中检索已有选择，支持长期规则、普通参考自动归档，以及遗忘、恢复和冲突处理。遗忘会停止主动召回，历史记录仍保留。
-- **原生测试与可选实验**：测试、验收与解释交给 Codex；原有验证接口仅作可选实验保留，不作为 BuildChoice 对需求正确性的独立认证。
+- **原生测试**：测试、验收与解释交给 Codex，BuildChoice 不作为需求正确性的独立认证。
 - **真实资料读取记录**：PostToolUse 对受支持工具自动核验返回的文件内容与范围，优先供 INSPECT 使用；不能识别时回退审计读取器，不保存工具输出正文。见[支持范围](docs/PROJECT_READS.md)。
 
 ## 在提示词之外增加了什么
@@ -30,7 +30,7 @@ BuildChoice 在开发过程中结合用户需求和现有项目资料，识别�
 | 记住用户选了什么 | 将 Hook 观察到的选项回复绑定到具体决策和版本，保留确认来源 |
 | 修改需求后沿用正确方案 | 追加修订，保留旧选择，提示相关代码和验证结果需要复核 |
 | 下次聊天继续参考 | 项目内检索已确认选择，区分普通参考、长期规则、归档与遗忘 |
-| 检查代码是否落实选择 | 由 Codex 原生测试并解释结果；可选关联只用于定位，历史实验记录保留 |
+| 检查代码是否落实选择 | 由 Codex 原生测试并解释结果；可选关联只用于定位 |
 
 ## 使用示例
 
@@ -75,7 +75,7 @@ MCP 检查证据与当前开发依赖
 记录决策、关联实现、项目内复用
 ```
 
-插件不需要单独部署分类模型。核心组件包括 Codex Skill、MCP、UserPromptSubmit / PostToolUse Hook 与 SQLite 本地账本。默认使用轻量的 Prompt-first 策略，决策卡可独立开启；代码关联和实验验证均非必经步骤。
+插件不需要单独部署分类模型。核心组件包括 Codex Skill、MCP、UserPromptSubmit / PostToolUse Hook 与 SQLite 本地账本。默认使用轻量的 Prompt-first 策略，决策卡可独立开启，代码关联按需使用。
 
 ## 名称与运行模式
 
@@ -140,7 +140,6 @@ python plugins/buildchoice/setup.py --use-project /absolute/path/to/project
 - [决策卡使用说明](docs/DECISION_GUIDANCE.md)
 - [项目决策记忆](docs/DECISION_MEMORY.md)
 - [决策与代码关联](docs/ARCHITECTURE.md)
-- [决策落实功能](docs/DECISION_VERIFICATION.md)
 - [安装与升级](docs/UPGRADING.md)
 - [MCP 接口](docs/API.md)
 - [故障排查](docs/TROUBLESHOOTING.md)

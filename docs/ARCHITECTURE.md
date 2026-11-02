@@ -61,7 +61,7 @@ audit.v1 保留 sessions、sources、decisions、reviews、events；V3 保留独
 
 ## 安装与范围
 
-正常测试、验收与结果解释使用 Codex 原生能力。原决策落实验证仅为明确请求时的可选实验，保留 V3 事件、幂等操作和 acceptance.v1 / verification.v1 契约；条件由 Agent 推导，结果不构成独立需求认证。历史 verdict 与当前 applicability 分开，相关输入变化后 current_pass=false。详见[实验说明](DECISION_VERIFICATION.md)。
+正常测试、验收与结果解释使用 Codex 原生能力。兼容接口保留，不默认启动独立验证流程，也不构成独立需求认证。
 
 Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用 ~/.buildchoice，项目账本使用 .buildchoice_audit。插件注册 UserPromptSubmit 和 PostToolUse；后者用 read_observer.py 观察窄范围真实读取，复用 audit.py 来源/事件，仅保存路径、返回范围、版本哈希和调用信息，正文不落库。服务端重建当前范围、检查引用并使相关缓存失效；不证明 LLM 理解资料或用户同意。宿主审批与 Hook 信任保持独立。详见[读取观察](PROJECT_READS.md)。
 
