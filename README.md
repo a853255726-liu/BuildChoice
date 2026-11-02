@@ -1,7 +1,6 @@
 # BuildChoice
 
 [![CI](https://github.com/a853255726-liu/BuildChoice/actions/workflows/integration.yml/badge.svg)](https://github.com/a853255726-liu/BuildChoice/actions/workflows/integration.yml)
-[![Release](https://img.shields.io/github/v/release/a853255726-liu/BuildChoice)](https://github.com/a853255726-liu/BuildChoice/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **让 AI 编程中的关键产品选择，由用户来决定。**
@@ -79,7 +78,7 @@ MCP 检查证据与当前开发依赖
 
 ## 名称与运行模式
 
-- **0.10.1** 是当前产品发布版本。
+- **0.10.1** 是当前源码版本。
 - **决策卡模式**在配置和技术文档中称为 V3，开启命令是 pilot；它是功能开关，不是产品版本号。
 - **Prompt-first** 是默认的澄清提示策略；完整决策卡流程需另行开启。
 - **.claude-plugin** 是本地插件市场的兼容目录，当前安装器通过 Codex app-server 注册和加载插件，不需要启动另一个编程助手。见[架构说明](docs/ARCHITECTURE.md#名称与兼容目录)。
@@ -133,7 +132,7 @@ python plugins/buildchoice/setup.py --use-project /absolute/path/to/project
 
 ## 发布与许可
 
-[Releases](https://github.com/a853255726-liu/BuildChoice/releases) 提供核心运行包、插件包与 SHA256 校验文件；安装方式见[升级说明](docs/UPGRADING.md)。项目采用 [MIT License](LICENSE)。
+可在源码目录运行 `python scripts/build_distribution.py` 生成核心运行包、插件包与 SHA256 校验文件；安装方式见[升级说明](docs/UPGRADING.md)。项目采用 [MIT License](LICENSE)。
 
 ## 详细文档
 

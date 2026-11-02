@@ -2,11 +2,6 @@ name: Publish BuildChoice release
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/release.yml'
-      - 'buildchoice/desktop/bundle.py'
 
 permissions:
   contents: read
@@ -45,12 +40,14 @@ jobs:
         run: |
           version=$(python -c "from buildchoice.desktop.bundle import VERSION; print(VERSION)")
           tag="v$version"
-          if gh release view v0.9.1 > /dev/null 2>&1; then
-            gh release edit v0.9.1 --notes-file docs/releases/v0.9.1.md
-          fi
           if gh release view "$tag" > /dev/null 2>&1; then
             echo "Release $tag already exists; preserving its tag and assets."
             exit 0
+          fi
+          notes="docs/releases/v$version.md"
+          if [ ! -f "$notes" ]; then
+            echo "Add release notes for $version before publishing."
+            exit 1
           fi
           gh release create "$tag" \
             "dist/buildchoice-core-$version.zip" \
@@ -59,4 +56,4 @@ jobs:
             "dist/buildchoice-plugin-$version.zip.sha256" \
             --target "$RELEASE_COMMIT" \
             --title "BuildChoice $version" \
-            --notes-file "docs/releases/v$version.md"
+            --notes-file "$notes"
