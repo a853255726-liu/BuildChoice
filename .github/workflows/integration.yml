@@ -30,10 +30,14 @@ jobs:
         run: python -m unittest discover -s checks -p test_screen_recovery.py -v
       - name: Cross-chat decision memory and recoverable forgetting
         run: python -m unittest discover -s checks -p test_decision_memory.py -v
+      - name: Hook-bound natural memory management
+        run: python -m unittest discover -s checks -p test_memory_management.py -v
       - name: Private installation and project dispatch
         run: python -m unittest discover -s checks -p test_project_installation.py -v
       - name: Natural choices and stable retrieval
         run: python -m unittest discover -s checks -p test_choice_and_retrieval.py -v
+      - name: Candidate evidence, engineering consequences and option risk presentation
+        run: python -m unittest discover -s checks -p test_candidate_risks.py -v
 
   offline-and-browser:
     name: Unit, MCP, packaging and browser behavior

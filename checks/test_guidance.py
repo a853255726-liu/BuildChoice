@@ -315,14 +315,17 @@ class GuidanceTests(unittest.TestCase):
             module.read,module.WORKSPACE=old_read,old_workspace
 
     def test_implementation_link_uses_actual_file_and_is_idempotent(self):
-        response=self.service.screen(self.request())
+        handle=self.context()
+        response=self.service.screen(self.request(session_handle=handle))
         item=response['decisions'][0]
+        self.service.activate(response['task_id'],item['decision_id'],1,'link-confirm',handle)
+        handle=DecisionStore(self.workspace).observe_hook({**self.event,'turn_id':'2','prompt':'A'})['session_handle']
         (self.workspace/'profile.py').write_text('visibility = "private"\n',encoding='utf-8')
         args=(response['task_id'],item['decision_id'],1,'profile.py','Implements private visibility',1,1)
-        linked=self.service.link_implementation(*args)
-        self.assertEqual(self.service.link_implementation(*args),linked)
+        linked=self.service.link_implementation(*args,session_handle=handle)
+        self.assertEqual(self.service.link_implementation(*args,session_handle=handle),linked)
         self.assertTrue(linked['does_not_prove_correctness'])
-        status=self.service.status(response['task_id'])['implementations']
+        status=self.service.status(response['task_id'],handle)['implementations']
         self.assertEqual(len(status),1)
         self.assertEqual(status[0]['file_status'],'unchanged')
         self.assertFalse(status[0]['needs_recheck'])
@@ -330,15 +333,18 @@ class GuidanceTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT count(*) FROM decision_v3_events WHERE event_type='IMPLEMENTATION_LINKED'").fetchone()[0],1)
 
     def test_changed_file_and_decision_revision_mark_link_for_review(self):
-        response=self.service.screen(self.request())
+        handle=self.context()
+        response=self.service.screen(self.request(session_handle=handle))
         item=response['decisions'][0]
+        self.service.activate(response['task_id'],item['decision_id'],1,'link-confirm',handle)
+        handle=DecisionStore(self.workspace).observe_hook({**self.event,'turn_id':'2','prompt':'A'})['session_handle']
         path=self.workspace/'profile.py';path.write_text('private\n',encoding='utf-8')
-        self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Selected access rule')
+        self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Selected access rule',session_handle=handle)
         path.write_text('public\n',encoding='utf-8')
-        self.assertTrue(self.service.status(response['task_id'])['implementations'][0]['needs_recheck'])
+        self.assertTrue(self.service.status(response['task_id'],handle)['implementations'][0]['needs_recheck'])
         path.write_text('private\n',encoding='utf-8')
-        self.service.prepare_revision(response['task_id'],item['decision_id'],1,candidate(),'Preference changed')
-        linked=self.service.status(response['task_id'])['implementations'][0]
+        self.service.prepare_revision(response['task_id'],item['decision_id'],1,candidate(),'Preference changed',handle)
+        linked=self.service.status(response['task_id'],handle)['implementations'][0]
         self.assertEqual(linked['file_status'],'unchanged')
         self.assertEqual(linked['reason_codes'],['DECISION_REVISION_CHANGED'])
         self.assertTrue(linked['needs_recheck'])
@@ -363,13 +369,25 @@ class GuidanceTests(unittest.TestCase):
             self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Old revision',session_handle=handle)
 
     def test_removed_implementation_file_is_reported_unavailable(self):
-        response=self.service.screen(self.request());item=response['decisions'][0]
+        handle=self.context()
+        response=self.service.screen(self.request(session_handle=handle));item=response['decisions'][0]
+        self.service.activate(response['task_id'],item['decision_id'],1,'link-confirm',handle)
+        handle=DecisionStore(self.workspace).observe_hook({**self.event,'turn_id':'2','prompt':'A'})['session_handle']
         path=self.workspace/'profile.py';path.write_text('private\n',encoding='utf-8')
-        self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Access rule')
+        self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Access rule',session_handle=handle)
         path.rename(self.workspace/'profile-renamed.py')
-        linked=self.service.status(response['task_id'])['implementations'][0]
+        linked=self.service.status(response['task_id'],handle)['implementations'][0]
         self.assertEqual(linked['file_status'],'missing_or_unreadable')
         self.assertTrue(linked['needs_recheck'])
+
+    def test_implementation_requires_real_confirmation_not_only_a_registered_decision(self):
+        (self.workspace/'profile.py').write_text('private\n',encoding='utf-8')
+        response=self.service.screen(self.request());item=response['decisions'][0]
+        with self.assertRaisesRegex(ValueError,'OBSERVED_CONFIRMATION_REQUIRED'):
+            self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Unverified')
+        handle=self.context();response=self.service.screen(self.request(session_handle=handle));item=response['decisions'][0]
+        with self.assertRaisesRegex(ValueError,'OBSERVED_CONFIRMATION_REQUIRED'):
+            self.service.link_implementation(response['task_id'],item['decision_id'],1,'profile.py','Pending',session_handle=handle)
 
 
 if __name__=='__main__':unittest.main()

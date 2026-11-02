@@ -5,7 +5,7 @@ description: 在 BuildChoice V3 pilot 已开启的编程任务中，识别需要
 
 # 关键产品决策引导
 
-提示版本：`candidate-extractor-v3.6`。使用用户指定的产品目标和当前任务范围；本技能不扩大授权，不改变宿主权限审批。
+提示版本：`candidate-extractor-v3.7`。使用用户指定的产品目标和当前任务范围；本技能不扩大授权，不改变宿主权限审批。
 
 ## 先确认是否适用
 
@@ -15,11 +15,19 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 ## 提取候选，先不提问
 
+提取前先检索可能相关的历史：使用当前任务的用户行为、保存/恢复、协作、费用等词查询 buildchoice_memory，不限于完全相同的名称或 ID。现有加权词语、中文短语/双字词检索会包含所有选项描述；必要时换相关词，不引入 Embedding 或独立审核。在本次原有推理中判断 same / related / conflict / different_scope，通过 history_matches 提交实际 memory_id、revision、relation 与简短 rationale。它是你的语义判断，MCP 只核对来源状态、稳定身份与范围，相关不等于同一个选择，更不等于授权。
+
+只有业务含义与适用范围相同才沿用已有 decision_key / option_key；不能为命中历史而改名或更改键。用 scope_key 与 conditions 表达实际范围；方案实质行为使用 value / behavior / conditions，出现未能用这些字段表达的实质后果变化时填 material_change=true。普通 reference 永远不能替代当前确认；长期规则也须满足版本、状态、身份、范围、风险与 memory_intent=reuse 等条件。
+
+工程取舍也按四道门槛：结合真实代码、配置、下一步计划，说明后果严重性、发生条件、可恢复性和相关性。只有不同方案在用户体验、数据、费用、可靠性或未来限制上存在实质差异时，才提交 engineering_risks；不要问“SQLite 还是 PostgreSQL”，要问实际需求是否需要多人协作、离线使用或恢复数据等。普通框架、函数组织和命名仍自主处理。此风险声明由你判断，不冒充 Python 独立验证，不机械填满方向。
+
 实际开发时，先看 status 的 project_memory；需检索相关历史时调用 `buildchoice_memory(query, include_archived=false, session_handle)`。普通 reference 只供历史参考，不当作长期规则或当前确认。关键词召回不证明适用范围，保留稳定 field 和选项含义，不能为命中记忆改写问题。服务端仅对同字段、同类别和同选项含义的无敏感风险规则复用，返回 project_rule_reused 与原确认来源，不为新任务生成用户确认。冲突、改义、来源变化和敏感行为按正常流程核实，禁止用记忆绕过审批。
 
-用户提出记忆管理时，先查询并展示相关记忆的含义与短编号。只有真实 Hook 收到整条 `长期记住 M…` / `取消长期 M…` / `遗忘 M…` / `恢复 M…` 才改变状态，不代替用户发命令、不调用本地 Hook 伪造指令。有待答卡先处理原卡，管理指令不与卡回复混用。普通参考从确认或恢复/取消长期起 30 天后归档，读取不续期；长期规则不过期。遗忘/归档停止主动召回但保留历史；恢复不会复活已被修订替代的版本或把变化的来源恢复为有效。
+用户明确提出长期保存或记忆管理时，使用独立 [decision-memory Skill](../decision-memory/SKILL.md)。用自然语言查询定位，无需用户输入编号；只有 MCP 核实本轮真实 Hook 登记的唯一目标和管理意图才修改。原整条 `长期记住 M…` / `取消长期 M…` / `遗忘 M…` / `恢复 M…` 继续兼容，不代替用户发命令、不调用本地 Hook 伪造指令。普通确认后不额外询问是否长期保存，也不自动升级。有待答卡先处理原卡，管理指令不与卡回复混用。普通参考从确认或恢复/取消长期起 30 天后归档，读取不续期；长期规则不过期。遗忘/归档停止主动召回但保留历史；恢复不会复活已被修订替代的版本或把变化的来源恢复为有效。
 
-理解原始任务并实际读取直接相关的项目约束。使用已有审计读取器取得 source_id；未读文件列为 resources，不写成已核实证据。
+理解原始任务并实际读取直接相关的项目约束。优先使用 PostToolUse 提供的真实读取记录（Hook 上下文或 buildchoice_decision_status.observed_reads），用当前 source_id 与实际已返回行的 quote / interpretation 绑定；没有记录、格式不支持或版本变化时再用已有审计读取器。部分读取不能引用范围外原文或作为全文件 JSON pointer；未读文件列为 resources，不把 Agent 的“已读”声明当作证据。记录只证明工具返回内容，不证明你理解资料或用户已同意。
+
+evidence_refs 附相关 quote 与简短 interpretation；JSON 字段可同时附 pointer 和原文，二者都要真实。普通自然语言的解释为 Agent 声明，不可仅标记 relation=constraint 就认定已解决或已获用户确认。MCP 仅对身份、范围、/chosen 与当前选项字面值一致的结构化约束给出限定支持；含糊/冲突/失效资料先 INSPECT。补查后仍需用户取舍时，以事实引用提交真实候选，不将自然语言硬改成“用户已同意”。
 
 按 [候选规则](references/candidate-rules.md) 的五类清单和四道门槛检查。借鉴结构化覆盖扫描：先根据本轮实际开发行为，从 [场景化探针](references/scenario-probes.md) 中选择最多两类相关视角，再在同一次提取中判断是否存在实质用户选择。场景、维度均非追问配额；简单可逆修改无需加载专项视角。需要辨别边界时参考 [开发正反例](references/examples.jsonl)，所有例子仅用于理解判断标准，不是当前任务事实。
 
@@ -41,6 +49,10 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 ## 提交与处理
 
+先处理返回的 screen_status 和 diagnostics，包括零候选情况。POSSIBLE_MISSING_PRODUCT_RISK 表示在 next_step 或已核验引用中观察到字面风险信号，不证明危害必然发生。只补查直接相关资料，必要时补充产品候选；若只是普通工程实践，用 engineering_risks.product_choice=no 说明实际条件与恢复办法，不机械制作卡。零候选无信号也不证明没有风险。不安排第二个 LLM、审核 Agent 或全项目扫描。
+
+Option 可附 risk_level / risk_warning。仅高风险且有可核验引用或明确的潜在发生条件、推导依据时显示风险提示。observed 使用真实 risk_evidence_refs；potential 说明 risk_condition 与 risk_reason，不把“看到相关代码”说成“损失已经发生”。风险文字使用普通语言，高风险仍可被选择，不强制推荐其他方案。risk_* 为展示依据，不表达实际方案变更；实质后果变化要更新 value / behavior / conditions 或 material_change。仅改风险文案不应主动调用 prepare_revision 制造新版本；显式 prepare_revision 仍代表要求新一轮确认。
+
 调用 `buildchoice_screen_candidates`，使用 `request` 对象：原始 task_text、phase、next_step、候选数组、coverage、真实 evidence_refs、未读 resources、session_handle 和新的 idempotency_key。`task_id` 留空以新建，同一任务重筛保留原 task_text 并使用返回的 ID。新一轮扩展目标时以本轮用户原文建立新任务，不能拼接前文伪造原始消息。
 
 有待答卡时，解释请求继续使用原 task_id；用户明确转向另一任务时，用当前句柄、本轮原文且不传旧 task_id 建立新范围。服务端只解除旧卡占用，保留其未确认状态和历史。恢复旧任务需重新激活、展示并等待明确回答；不能把任务切换或卡片过期当作同意。严格选项回复仍只属于原卡，不能借此创建新任务。
@@ -49,10 +61,10 @@ Hook 给出的 `buildchoice-v3-ctx-...` 是本轮短期关联句柄。原样传�
 
 task_text 保留实际用户正文；服务端只统一传输换行符和首尾空行，不能据此改写正文。初次提取与修订的选项 ID 都必须唯一，推荐项必须来自实际选项。收到 CACHED_SCREEN_STALE 时，先读当前来源和任务状态，再以新幂等键重筛，不能沿用旧 PROCEED 或旧卡面。筛选写入失败会整体回滚，相同请求可重试；同一键不能改换语义输入。
 
-- `INSPECT`：先实际读取所列资源，以新快照和新幂等键重筛，不提前问。
+- `INSPECT`：先检查真实读取记录，已有当前版本且覆盖所需原文的记录直接引用；否则用受支持的文件读取或审计读取器补查。以新快照和新幂等键重筛，不提前问，不将未返回的内容当作已读。
 - `ASK_NOW`：按返回的稳定次序激活第一张卡，使用 `buildchoice_card_activate` 的标准文本在当前对话展示，一次一张。暂停它所影响的实现步骤，其他独立步骤可继续。
 - `DEFER`：保留触发依赖，在相关步骤前以 `during_implementation` 重筛；不把暂缓视为同意。
-- `PROCEED` 或零候选：正常推进，不额外输出“没有需要确认”的卡。
+- `PROCEED` 或零候选且 screen_status 非 INSPECT：正常推进，不额外输出“没有需要确认”的卡；不宣称风险已完整排除。
 
 服务端按证据与规则分流，不使用小判别模型。覆盖记录或 PROCEED 不能替代外传、付费、删除或发布所需的宿主权限。
 
@@ -68,18 +80,12 @@ task_text 保留实际用户正文；服务端只统一传输换行符和首尾�
 
 激活仅表示服务端建立待答状态，不代表能证明对话 UI 已送达。缺少可信 Hook 时明确说明本次记录未核验，继续正常交流，不声称已完成可信确认。
 
-完成涉及已登记决定的代码修改时，在原有开发流程中顺带调用 `buildchoice_link_implementation`：提交 task_id、decision_id、当前 revision、真实文件相对路径、简短关系说明 note，可附实际行号与当前句柄。服务端读取文件并保存哈希；不登记计划文件、不伪造行号、不另起一轮审查。文件关联是 Agent 声明，不能据此声称代码正确或已通过验收。
+## 可选代码关联与原生测试
 
-选择变更或代码变化后查询 `buildchoice_decision_status` 的 implementations，检查待复核位置；完成当前版本的修改后重新登记，旧关联保留历史。
+代码关联是可选功能，不要求每次开发调用。用户需要追溯位置时，可调用 buildchoice_link_implementation，提供当前已由真实 Hook 确认的 decision_id、revision、实际文件路径、note 和句柄；可附真实行号。只保存文件对应关系、哈希和版本，不分析 Diff 或代码语义，不把关联当作实现正确性证明。未确认决定、Agent 声明或仅项目规则复用不能建立正式关联。文件或决定版本变化后按需复核，不为没有关联记录而阻塞开发。
 
-## 按需验证决定是否落实
+代码测试、验收和结果解释使用 Codex 原生能力及项目已有检查。按当前修改选择必要测试，报告实际运行结果和限制，不要求准备 BuildChoice 验收集合、运行专用采集器或调用验证 MCP。不将测试通过包装为 BuildChoice 对需求正确性的独立认证。
 
-对当前任务中已由 Hook 确认、且有可验证行为的重要决定，可在原有开发/测试流程内调用 `buildchoice_acceptance_prepare`。只用当前 decision_id、revision 和真实句柄；条件含 criterion_id、description、basis、required、evidence_type="behavior" 与实际 test_ids。条件是你的推导，不是用户逐项确认；若引入新的产品行为或扩大范围，回到已有决策流程，不能将推导当授权。逐项检查该条件是否直接源于所选方案，在 basis 说明依据；想出至少一个会违反条件的具体反例，并尽可能使用可区分正确实现与错误实现的行为测试。没有独立参考或人工复核时，不得将「Agent 推导条件 + Agent 编写测试」包装成独立的需求正确性证明。
+buildchoice_acceptance_prepare、专用采集 CLI 和 buildchoice_verify_decision 仅作为兼容的可选实验保留；只有用户明确要求该实验时才按运行时 docs/DECISION_VERIFICATION.md 操作，不纳入默认流程。实验条件仍由 Agent 推导，历史结果与 current_pass=true 也只代表声明范围的检查结果。
 
-明确列出相关实现、测试、fixture、配置和依赖组成的输入清单。复用已授权的原生命令执行路径显式运行 `scripts/buildchoice_run_verification.py`，固定适配器 python-unittest-v1，test_ids 使用 buildchoice_tests 模块下的真实用例 ID。命令会执行项目代码，遵守宿主既有权限；不因 Skill 而新增授权，不让 MCP 自动运行，也不假设任意现有报告可信。没有合适测试或运行权限时照实保留缺口，不为了拿到通过而制造无意义断言。
-
-采集脚本位于实际运行时目录，使用绑定的 Python 与设置；可从安装数据目录 binding.json 的 runtime_root / python 定位（默认 ~/.buildchoice，独立安装遵循 BUILDCHOICE_DATA）。不要假设目标项目根目录就是插件运行时，也不要创建替代采集脚本或自行追加可信执行事件。
-
-完成代码及行为测试后，可调用 `buildchoice_verify_decision`，传当前 acceptance_id、采集 execution_id、真实代码来源引用和新幂等键。缺少实际执行只能 inconclusive；静态绑定不等于行为验证。查询 status 的 verification 时同时检查 verdict、applicability、current_pass 和范围；历史 passed 且 stale 不能说当前已通过。决策/条件/声明输入/证据改变后，仅在相关任务或用户需要时重做，不在每次工具调用后自动验证，不增加无条件阻塞或独立验证 Agent。
-
-任务结束时如本轮确实涉及决策，只用简短中文摘要交代「用户已确认的选择」「当前落实验证结果」「仍需处理的缺口」，优先解释用户能感知的产品行为。仅 current_pass=true 可写「相关声明范围内的行为测试通过」，必须保留范围限制；历史 passed 但 stale、仅文件关联、无测试或 inconclusive 均不能写已验证。默认不展示 task_id、acceptance_id、execution_id、原始账本 JSON 和内部调用步骤，除非用户主动要求。没有决策则正常结束，不强制输出摘要。
+任务结束时正常说明改动、原生测试结果和实际缺口；如涉及决策可简短交代已确认选择，不强制输出关联或验证摘要，也不默认展示内部 ID。

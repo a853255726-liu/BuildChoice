@@ -1,6 +1,6 @@
 # BuildChoice · 架构
 
-本文面向贡献者，介绍 Codex 插件的运行流程与模块边界。BuildChoice 由 Skill、MCP、UserPromptSubmit Hook 和本地 SQLite 账本组成，提供决策引导、项目记忆、实现关联和按需验证。
+本文面向贡献者，介绍 Codex 插件的运行流程与模块边界。BuildChoice 由 Skill、MCP、UserPromptSubmit / PostToolUse Hook 和本地 SQLite 账本组成，提供决策引导、项目记忆、资料读取记录与可选代码关联；原验证仅作实验保留。
 
 ## 主流程
 
@@ -55,15 +55,15 @@ audit.v1 保留 sessions、sources、decisions、reviews、events；V3 保留独
 
 ## 实现关联
 
-Agent 在原有开发过程中顺带登记决定与实现文件、可选行号、简短关系说明。服务端读取真实文件并保存 SHA256，使用 IMPLEMENTATION_LINKED 事件保存历史。无需第二轮审查或 Git 子进程。
+代码关联为可选功能，不要求每次开发登记。只有当前真实 Hook 已确认的决定可关联文件、可选行号和简短关系说明，事件同时保留 confirmation_id。服务端只读文件并保存 SHA256，复用 IMPLEMENTATION_LINKED 事件；不分析 Diff 或代码语义，不运行 Git 子进程。
 
 状态查询重新核对文件；决定版本变化或文件变化时标记对应关联待复核。provenance 始终为 agent_reported_implementation，不能从“哈希未变”推断实现正确。旧确认、审计和事件不受影响，不增加数据库表。
 
 ## 安装与范围
 
-决策落实验证复用 V3 事件与幂等操作表，新增独立 acceptance.v1 / verification.v1 契约。验收条件为 Agent 推导；本地采集执行为 collector_observed_execution；静态引用为 collector_file_read，三者不替代用户确认。历史 verdict 与当前 applicability 分开；相关输入变化后 current_pass=false。详见 [验证使用说明](DECISION_VERIFICATION.md)。
+正常测试、验收与结果解释使用 Codex 原生能力。原决策落实验证仅为明确请求时的可选实验，保留 V3 事件、幂等操作和 acceptance.v1 / verification.v1 契约；条件由 Agent 推导，结果不构成独立需求认证。历史 verdict 与当前 applicability 分开，相关输入变化后 current_pass=false。详见[实验说明](DECISION_VERIFICATION.md)。
 
-Python 包、插件 ID、MCP 服务键统一为 `buildchoice`。安装数据使用 `~/.buildchoice`，项目账本使用 `.buildchoice_audit`。插件只注册 UserPromptSubmit Hook；宿主权限审批与 Hook 信任保持独立。
+Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用 ~/.buildchoice，项目账本使用 .buildchoice_audit。插件注册 UserPromptSubmit 和 PostToolUse；后者用 read_observer.py 观察窄范围真实读取，复用 audit.py 来源/事件，仅保存路径、返回范围、版本哈希和调用信息，正文不落库。服务端重建当前范围、检查引用并使相关缓存失效；不证明 LLM 理解资料或用户同意。宿主审批与 Hook 信任保持独立。详见[读取观察](PROJECT_READS.md)。
 
 模式 off 停用提示、证据写入、决策卡、项目记忆及验证；设置和关闭状态仍可查询。升级方式见 [升级说明](UPGRADING.md)。
 

@@ -62,8 +62,10 @@ class DiscoveryAssetTests(unittest.TestCase):
     def test_acceptance_instruction_explicitly_limits_self_verification(self):
         skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
         guidance = (REFERENCE / "scenario-probes.md").read_text(encoding="utf-8")
-        self.assertIn("至少一个会违反条件的具体反例", skill)
-        self.assertIn("Agent 编写测试", skill)
+        self.assertIn("代码关联是可选功能", skill)
+        self.assertIn("使用 Codex 原生能力", skill)
+        self.assertIn("不要求准备 BuildChoice 验收集合", skill)
+        self.assertIn("独立认证", skill)
         self.assertIn("current_pass=true", skill)
         self.assertIn("不得标为通过", guidance)
 

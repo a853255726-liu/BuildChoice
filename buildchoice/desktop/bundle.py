@@ -18,6 +18,8 @@ def build_core_runtime(destination, root=ROOT):
                                        'buildchoice_run_verification.py','buildchoice_test_worker.py'))
     names.add('docs/contracts/decision-v3.schema.json')
     names.add('docs/DECISION_MEMORY.md')
+    names.add('docs/CANDIDATE_RISKS.md')
+    names.update(('docs/PROJECT_READS.md','docs/DECISION_VERIFICATION.md'))
     names.add('LICENSE')
     names.update('docs/contracts/'+name for name in ('acceptance-v1.schema.json','verification-v1.schema.json'))
     data = {name: (root/name).read_bytes() for name in sorted(names)}

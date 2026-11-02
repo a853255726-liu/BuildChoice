@@ -20,6 +20,9 @@ def render(card, position=1, total=1, verified=True):
     for option in card['options']:
         recommended = card['recommendation'] and card['recommendation']['option_id'] == option['id']
         lines.append(option['id'] + '. ' + option['label'] + ('（推荐）' if recommended else '') + '：' + option['tradeoff'])
+        if option.get('risk_level')=='high' and option.get('risk_warning'):
+            basis='项目资料中的风险' if option.get('risk_basis')=='observed' else '可能发生'
+            lines.append('   风险提示（'+basis+'）：'+option['risk_warning'])
     if card['recommendation']:
         lines.append('建议 ' + card['recommendation']['option_id'] + '，因为' + card['recommendation']['reason'])
     lines.append('可回复“我选第二个”、完整方案名称，或 ' + ' / '.join(o['id'] for o in card['options']) + '；需要讨论可回复“解释一下”。')

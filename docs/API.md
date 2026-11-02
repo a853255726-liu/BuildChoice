@@ -1,10 +1,12 @@
 # BuildChoice · MCP 接口
 
+开发版候选增强：Option 新增可选 risk_level / risk_warning / risk_basis / risk_reason / risk_condition / risk_evidence_refs，以及实际行为 behavior / conditions；Candidate 新增 engineering_risks、history_matches、scope_key、conditions、material_change。EvidenceRef 可同时附 quote、pointer 与 interpretation，解释不构成确认。ScreenResponse 增加 screen_status、diagnostics、risk_review、history_review，零候选也须检查诊断；原字段及无新字段的请求兼容。详见[字段语义与示例](CANDIDATE_RISKS.md)。
+
 本文面向插件集成与开发者。日常使用可直接在 Codex 对话中提出需求，见[决策卡指南](DECISION_GUIDANCE.md)。BuildChoice 通过 MCP 提供决策引导、项目记忆、实现关联、行为验证及文件证据接口。
 
 ## 连接与可用工具
 
-安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 15 个工具：
+安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 16 个工具：
 
 | 分组 | 工具 |
 |---|---|
@@ -12,7 +14,7 @@
 | 证据与兼容审计 | buildchoice_audit_start、buildchoice_audit_read、buildchoice_audit_decision、buildchoice_audit_report |
 | 决策 | buildchoice_screen_candidates、buildchoice_card_activate、buildchoice_decision_status、buildchoice_decision_prepare_revision |
 | 实现与验证 | buildchoice_link_implementation、buildchoice_acceptance_prepare、buildchoice_verify_decision |
-| 项目记忆 | buildchoice_memory |
+| 项目记忆 | buildchoice_memory、buildchoice_memory_manage |
 
 决策卡关闭时隐藏决策写入、实现关联、验收/验证和记忆工具，保留 8 个工具；完全关闭时仅保留设置与决策状态，共 4 个。工具列表变更会发送通知，调用时仍执行开关校验。
 
@@ -20,7 +22,7 @@
 
 ## 读取文件证据
 
-先创建来源收集会话：
+优先读取 PostToolUse 上下文或 buildchoice_decision_status.observed_reads 中的 source_id、路径、范围、文件哈希和 current。该来源 origin=hook_file_read，正文不保存；服务端从仍匹配哈希的文件重建已返回范围。部分读取只允许范围内 quote，整文件记录才能使用 JSON pointer。不支持或没有有效记录时，显式创建来源收集会话：
 
 ~~~json
 {"title":"小票保存规则","task":"核对已确认保存流程的相关资料"}
@@ -40,6 +42,8 @@
 
 来源收集会话的 task 是调用方说明，不是用户授权。文件读取与引用绑定可以证明内容、路径和哈希，不证明业务解释正确。
 
+INSPECT 优先复用当前聊天的有效读取记录；单纯声明“已读”无效，新读取或文件变化会触发相关筛选缓存失效。支持工具、隐私保存与边界见[读取观察](PROJECT_READS.md)。
+
 ## 兼容审计记录
 
 已有集成可继续使用 buildchoice_audit_decision(session, title, value, refs, impact?, rationale?) 登记引用，用 buildchoice_audit_report(session) 获取 report 与 markdown。引用在 pointer 与 quote 中选择一项，必须来自当前来源收集会话。
@@ -48,7 +52,9 @@
 
 ## 项目决策记忆
 
-buildchoice_memory(query="", include_archived=false, session_handle) 需要当前有效 Hook 句柄，返回 memory.v1、最多 30 条参考/规则、确认来源、生命周期、冲突、total_matches、truncated 和精确管理命令。查询不续期，也不创建确认；管理操作通过真实用户消息执行。见[决策记忆](DECISION_MEMORY.md)。
+buildchoice_memory(query="", include_archived=false, session_handle) 需要当前有效 Hook 句柄，返回 memory.v1、最多 30 条参考/规则、确认来源、生命周期、冲突、total_matches、truncated、兼容管理命令和本轮 management_request（没有真实管理指令时为 null）。查询不续期，也不创建确认。
+
+buildchoice_memory_manage(memory_id, revision, session_handle, action="promote") 支持 promote / unpin / forget / restore；仅本轮 Hook 登记的唯一目标、动作和当前版本可以修改。真实自然语言已明确授权时无需二次确认；目标或意图不清返回 memory_status=clarification_required 与原因，不写管理事件。有效请求返回 applied、原范围与 replayed；重复请求不追加事件。旧编号命令继续由 Hook 直接处理。见[决策记忆](DECISION_MEMORY.md)。
 
 Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的用户确认，不能直接用来创建仅接受本任务确认的验收集合。状态查询会重新核对复用规则的有效性。
 
@@ -67,13 +73,15 @@ Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的
 
 ## 决定与实现关联
 
-`buildchoice_link_implementation(task_id, decision_id, revision, path, note, start_line?, end_line?, session_handle?)` 将工作区真实 UTF-8 文件关联到当前决定版本。path 使用相对路径，note 说明具体关系，行号可省略；文件最大 256 KiB。拒绝越界、私有、链接路径、无效行号、过期版本和跨会话写入。
+`buildchoice_link_implementation(task_id, decision_id, revision, path, note, start_line?, end_line?, session_handle?)` 是可选接口，将真实 UTF-8 文件关联到当前 Hook 已确认的决定版本；未确认、Agent 自报及仅项目规则复用不能建立正式关联。path 为相对路径，note 说明关系，行号可省略，最大 256 KiB。拒绝越界、私有、链接路径、无效行号、过期版本和跨会话写入。无需每次开发调用。
 
 服务端读取实际文件并保存 SHA256；不执行 Git，不修改文件，不存整段代码快照。同一决定版本/文件/行号重复登记相同内容时不重复写事件；内容或说明变化保留新事件。每任务最多 100 个关联。
 
-返回 provenance=agent_reported_implementation、does_not_prove_correctness=true。该登记不建立用户确认，也不证明实现符合选择。`buildchoice_decision_status` 的 implementations 返回关联、当前 file_status 和 needs_recheck；决定版本变化、文件变化或不可读均提示复核。旧记录保留，关联本身不触发验证。
+返回 provenance=agent_reported_implementation、does_not_prove_correctness=true，并保存原 confirmation_id。该登记不建立用户确认，也不证明实现符合选择。`buildchoice_decision_status` 的 implementations 返回关联、当前 file_status 和 needs_recheck；决定版本变化、文件变化或不可读均提示复核。旧记录保留，关联本身不触发验证。
 
-## 决策落实验证
+## 决策落实验证（可选实验）
+
+默认开发使用 Codex 原生测试、验收及结果解释，不自动准备下列集合或执行采集器。接口为兼容保留，只有明确请求实验时使用；不是独立需求认证。verification 状态及结果附 mode=optional_experiment、independent_certification=false，原有契约及历史保留。
 
 - `buildchoice_acceptance_prepare(task_id, decision_id, revision, criteria, session_handle, idempotency_key)`：仅当前会话、当前已确认版本可创建不可变验收集合。每项含 criterion_id、description、basis、required、evidence_type="behavior"、test_ids（实际 unittest 用例 ID）。返回 acceptance_id、acceptance_version、acceptance_digest、实际 confirmation_id 和 choice；criterion_author=agent、human_approval=not_separately_confirmed。新幂等键创建新版本，旧集合不再代表当前验收。
 - `buildchoice_verify_decision(task_id, decision_id, revision, acceptance_id, code_evidence_refs, session_handle, idempotency_key, execution_id?)`：读取审计来源及显式采集器记录，保存逐项与整体结论。代码引用含 criterion_id、source_id 以及 quote 或 pointer，真实读取成功仅代表静态绑定。无 execution_id 时不执行任何命令，行为结论保持 inconclusive。拒绝未知、跨任务或跨验收集合的执行记录。

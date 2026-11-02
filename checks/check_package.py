@@ -58,7 +58,9 @@ for result in archives:
             assert archive.read('buildchoice/LICENSE')==(root/'LICENSE').read_bytes()
             plugin=json.loads(archive.read('buildchoice/.codex-plugin/plugin.json'))
             assert plugin['version']==VERSION
-            assert set(json.loads(archive.read('buildchoice/hooks/hooks.json'))['hooks'])=={'UserPromptSubmit'}
+            assert plugin['skills']=='./skills/'
+            assert 'buildchoice/skills/decision-memory/SKILL.md' in archive.namelist()
+            assert set(json.loads(archive.read('buildchoice/hooks/hooks.json'))['hooks'])=={'UserPromptSubmit','PostToolUse'}
 
 # Initialize from the actual source and from the checksummed runtime bundle.
 spec=importlib.util.spec_from_file_location('buildchoice_setup',root/'plugins/buildchoice/setup.py')

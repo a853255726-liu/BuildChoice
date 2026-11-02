@@ -1,4 +1,8 @@
-"""Read evidence and collector receipts, never execute tests or project commands."""
+"""Optional experimental receipt checks, never independent requirements certification.
+
+Normal testing and result interpretation belong to Codex. These compatibility
+endpoints never automatically execute tests or project commands.
+"""
 import hashlib
 import json
 import uuid
@@ -93,7 +97,8 @@ def present(store, run):
         reasons=freshness(store,conditions,receipt,run['code_evidence'])
         if run['rule_version']!=RULE_VERSION or run['runtime_digest']!=runtime_digest():reasons.append('VERIFIER_RUNTIME_CHANGED')
     except (OSError,ValueError,KeyError,ValidationError):reasons=['VERIFICATION_BINDING_UNAVAILABLE']
-    return {**run,'applicability':'stale' if reasons else 'current','stale_reasons':sorted(set(reasons)),
+    return {**run,'mode':'optional_experiment','independent_certification':False,
+            'applicability':'stale' if reasons else 'current','stale_reasons':sorted(set(reasons)),
             'current_pass':run['verdict']=='passed' and not reasons}
 
 
@@ -165,5 +170,6 @@ def status(store, task_id):
         try:acceptance.current(store,value);applicability='current'
         except ValueError:applicability='stale'
         conditions.append({**value,'applicability':applicability})
-    return {'acceptance_sets':conditions,'verifications':[present(store,r) for r in latest_runs.values()],
+    return {'mode':'optional_experiment','default_workflow':'codex_native','independent_certification':False,
+            'acceptance_sets':conditions,'verifications':[present(store,r) for r in latest_runs.values()],
             'history_counts':{'acceptance_sets':len(sets),'verifications':len(runs)}}

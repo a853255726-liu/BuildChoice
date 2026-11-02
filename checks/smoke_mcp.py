@@ -71,7 +71,7 @@ try:
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
     names={t['name'] for t in send('tools/list',{})['tools']}
-    assert len(names)==15,names
+    assert len(names)==16,names
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
     assert native['values']['mode']=='Prompt 优先'
@@ -92,10 +92,23 @@ try:
         'next_step':'Implement access rules','candidates':[candidate()],'session_handle':handle,'idempotency_key':'screen',
         'coverage':[{'dimension':'access_visibility','status':'candidate','reason':'Access rule needs a choice.','candidate_ids':['visibility']}]}})
     item=response['decisions'][0]
+    # Display-only risk metadata does not change option identity or Hook reply parsing.
+    risk_candidate=candidate()
+    risk_candidate['options'][1].update(risk_level='high',risk_basis='potential',
+        risk_warning='If a link is shared with the wrong person, profile details may become visible.',
+        risk_condition='If a user forwards the profile link',risk_reason='The option uses a transferable link.')
+    risk_response=call('buildchoice_screen_candidates',{'request':{'task_id':response['task_id'],
+        'task_text':event['prompt'].strip('\r\n'),'phase':'before_implementation','next_step':'Implement access rules',
+        'candidates':[risk_candidate],'session_handle':handle,'idempotency_key':'risk-copy',
+        'coverage':[{k:v for k,v in e.items() if k in ('dimension','status','reason','candidate_ids','evidence_refs')}
+                    for e in response['coverage']['entries']]}})
+    assert risk_response['decisions'][0]['decision_id']==item['decision_id']
+    assert risk_response['decisions'][0]['revision']==1
     assert item['status']=='ASK_NOW' and response['coverage']['reported']
     active=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert 'BuildChoice' in active['message']
+    assert '风险提示' in active['message']
     retried=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert retried==active
@@ -103,6 +116,12 @@ try:
     status=call('buildchoice_decision_status',{'task_id':response['task_id'],'session_handle':confirmed})
     assert status['decisions'][0]['status']=='PROCEED'
     assert status['confirmation_history'][0]['choice_id']=='A'
+    risk_candidate['options'][1]['risk_warning']='If the link is forwarded, access may reach unintended viewers.'
+    refreshed=call('buildchoice_screen_candidates',{'request':{'task_id':response['task_id'],
+        'task_text':event['prompt'].strip('\r\n'),'phase':'during_implementation','next_step':'Continue access rules',
+        'candidates':[risk_candidate],'session_handle':confirmed,'idempotency_key':'confirmed-risk-copy'}})
+    assert refreshed['decisions'][0]['revision']==1
+    assert refreshed['decisions'][0]['confirmation_status']=='user_message_observed'
     assert status['coverage']==response['coverage']
     old_activation=send('tools/call',{'name':'buildchoice_card_activate','arguments':{
         'task_id':response['task_id'],'decision_id':item['decision_id'],'revision':1,
@@ -156,7 +175,13 @@ try:
     def memory_hook(prompt,turn,session='mcp-smoke'):
         return re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook({**event,
             'session_id':session,'turn_id':turn,'prompt':prompt}))[0]
-    confirmed=memory_hook('长期记住 '+entry['memory_id'],'3')
+    blocked=call('buildchoice_memory_manage',{'memory_id':entry['memory_id'],'revision':1,'session_handle':confirmed})
+    assert blocked['reason']=='EXPLICIT_USER_MEMORY_REQUEST_REQUIRED',blocked
+    confirmed=memory_hook('把刚才的选择长期记住','3')
+    intent=call('buildchoice_memory',{'session_handle':confirmed})['management_request']
+    assert intent['reason']=='TARGET_UNIQUE',intent
+    promoted=call('buildchoice_memory_manage',{'memory_id':entry['memory_id'],'revision':1,'session_handle':confirmed})
+    assert promoted['memory_status']=='applied',promoted
     assert call('buildchoice_memory',{'session_handle':confirmed})['entries'][0]['tier']=='rule'
     fresh=memory_hook('查找历史决定','2','other-smoke-session')
     assert call('buildchoice_memory',{'session_handle':fresh})['entries'][0]['confirmation_id']==entry['confirmation_id']
@@ -191,7 +216,7 @@ try:
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':conditions['criteria'],'idempotency_key':'pilot-off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
-    print('PASS actual MCP initialize, 15 tools, settings, audit, synthetic Hook confirmation, acceptance, explicit CLI execution, verification, stale results and off/pilot-off behavior')
+    print('PASS actual MCP initialize, 16 tools, settings, audit, synthetic Hook confirmation, natural memory management, acceptance, explicit CLI execution, verification, stale results and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)

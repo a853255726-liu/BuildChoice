@@ -9,7 +9,11 @@ from buildchoice.desktop.settings import read
 
 
 def handle_event(event):
-    if event.get('hook_event_name')!='UserPromptSubmit' or read()['mode']=='off': return None
+    if read()['mode']=='off': return None
+    if event.get('hook_event_name')=='PostToolUse':
+        from buildchoice.desktop.read_observer import observe
+        return observe(event,WORKSPACE)
+    if event.get('hook_event_name')!='UserPromptSubmit':return None
     from buildchoice.desktop.prompt_policy import handle_prompt
     result=handle_prompt(event,WORKSPACE)
     from buildchoice.desktop.decision_hook import handle_prompt as decision_prompt

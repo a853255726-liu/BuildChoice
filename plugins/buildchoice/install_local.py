@@ -27,8 +27,8 @@ def install(workspace,marketplace=None):
         client.initialize()
         client.request('plugin/install',{'pluginName':name,'marketplacePath':str(marketplace)},response_model=PluginInstallResponse)
         detail = client.request('plugin/read',{'pluginName':name,'marketplacePath':str(marketplace)},response_model=PluginReadResponse).plugin
-    if detail.mcp_servers != ['buildchoice'] or len(detail.hooks)!=1:
-        raise ValueError('Installed plugin does not expose the unified server and UserPromptSubmit Hook')
+    if detail.mcp_servers != ['buildchoice'] or {h.event_name.value for h in detail.hooks}!={'UserPromptSubmit','PostToolUse'}:
+        raise ValueError('Installed plugin does not expose the unified server and prompt/read Hooks')
     return {'installed':detail.summary.installed,'enabled':detail.summary.enabled,'id':detail.summary.id,
             'mcp_servers':detail.mcp_servers,'hook_events':[h.event_name.value for h in detail.hooks],
             'hook_trust_modified':False,'native_ui_visually_verified':False}

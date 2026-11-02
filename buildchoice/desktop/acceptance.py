@@ -1,4 +1,7 @@
-"""Immutable Agent-derived acceptance sets anchored to observed user choices."""
+"""Optional experimental acceptance sets; normal testing belongs to Codex.
+
+The shared confirmed() guard validates provenance, not requirement correctness.
+"""
 import json
 import uuid
 from pathlib import Path

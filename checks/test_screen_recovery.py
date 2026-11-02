@@ -108,7 +108,7 @@ class ScreenRecoveryTests(unittest.TestCase):
         path.write_text(json.dumps({'field':'Profile visibility','chosen':'Shared'}),encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'CACHED_SCREEN_STALE'):self.service.screen(request)
         fresh=self.service.screen({**request,'idempotency_key':'fresh'})
-        self.assertEqual(fresh['decisions'][0]['status'],'ASK_NOW')
+        self.assertEqual(fresh['decisions'][0]['status'],'INSPECT')
         path.unlink()
         with self.assertRaisesRegex(ValueError,'CACHED_SCREEN_STALE'):
             self.service.screen({**request,'idempotency_key':'fresh'})
@@ -143,7 +143,7 @@ class ScreenRecoveryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'SCREEN_INPUT_CHANGED_DURING_EVALUATION'):
                 self.service.screen(request)
         self.assertEqual(self.counts(),before)
-        self.assertEqual(self.service.screen(request)['decisions'][0]['status'],'ASK_NOW')
+        self.assertEqual(self.service.screen(request)['decisions'][0]['status'],'INSPECT')
 
     def test_interrupted_result_write_rolls_back_task_items_context_and_operation(self):
         handle=self.hook('Implement profile visibility');request=self.request(session_handle=handle)

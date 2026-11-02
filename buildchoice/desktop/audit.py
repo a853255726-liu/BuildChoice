@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 MAX_BYTES = 256 * 1024
+READ_FIELDS = ('start_line','end_line','full_file','tool_name','tool_use_id')
 PRIVATE_PARTS = {'.git', '.codex', '.agents', '.aws', '.ssh', '.buildchoice_audit', '.gate_audit', '.venv', 'node_modules'}
 
 
@@ -152,6 +153,60 @@ class Ledger:
             self.event(db, session, 'SOURCE_READ', {k: source[k] for k in ('id', 'locator', 'digest')})
         return source
 
+    def observe_read(self, event, relative, raw, start, end, fragment):
+        """Store only a verified range/hash receipt, never the observed tool output."""
+        host=sha(event['session_id'].encode());turn=sha(event['turn_id'].encode())
+        session='audit-read-'+sha((str(self.workspace)+host).encode())[:20]
+        ident='src-'+sha(encode([session,turn,event['tool_use_id'],relative,start,end]).encode())[:24]
+        metadata={'start_line':start,'end_line':end,'full_file':start==1 and end==len(raw.decode('utf-8-sig').splitlines()),
+            'returned_sha256':sha(fragment.encode()),'tool_name':event['tool_name'],'tool_use_id':event['tool_use_id'],
+            'host_session_digest':host,'host_turn_digest':turn,'meaning':'tool returned matching lines; no proof of understanding'}
+        with self.connect() as db:
+            db.execute('INSERT OR IGNORE INTO sessions VALUES(?,?,?,?,?,?)',
+                (session,str(self.workspace),'Observed project reads','',now(),'hook_observed'))
+            prior=db.execute('SELECT digest FROM sources WHERE id=?',(ident,)).fetchone()
+            if prior and prior[0]!=sha(raw):raise ValueError('Tool read replay changed its file version')
+            db.execute('INSERT OR IGNORE INTO sources VALUES(?,?,?,?,?,?,?,?)',
+                (ident,session,relative,'',sha(raw),now(),'hook_file_read',encode(metadata)))
+            if not prior:self.event(db,session,'TOOL_READ_OBSERVED',{'source_id':ident,'locator':relative,**metadata})
+        return {'source_id':ident,'path':relative,'file_sha256':sha(raw),**{k:metadata[k] for k in READ_FIELDS}}
+
+    def source_text(self, source, raw=None):
+        """Reconstruct only the range actually returned, from the still-current file."""
+        if source['origin']=='collector_file_read':return source['content']
+        if source['origin']!='hook_file_read':raise ValueError('Untrusted source origin')
+        if raw is None:
+            with self.path(source['locator']).open('rb') as stream:raw=stream.read(MAX_BYTES+1)
+        if len(raw)>MAX_BYTES or sha(raw)!=source['digest']:raise ValueError('Observed file version changed')
+        metadata=json.loads(source['metadata']);lines=raw.decode('utf-8-sig').splitlines()
+        fragment='\n'.join(lines[metadata['start_line']-1:metadata['end_line']])
+        if sha(fragment.encode())!=metadata['returned_sha256']:raise ValueError('Observed range changed')
+        return fragment
+
+    def observed_reads(self, host_session_digest, paths=None):
+        if not host_session_digest:return []
+        session='audit-read-'+sha((str(self.workspace)+host_session_digest).encode())[:20]
+        with self.connect() as db:
+            query='SELECT s.* FROM sources s JOIN sessions t ON t.id=s.session WHERE s.session=? AND t.workspace=? AND s.origin=?'
+            args=[session,str(self.workspace),'hook_file_read']
+            if paths is not None:
+                normalized=[]
+                for path in paths:
+                    try:normalized.append(self.path(path).relative_to(self.workspace).as_posix())
+                    except (OSError,ValueError):pass
+                paths=normalized
+                if not paths:return []
+                query+=' AND s.locator IN ('+','.join('?' for _ in paths)+')';args.extend(paths)
+            rows=db.execute(query+' ORDER BY s.created DESC, s.rowid DESC LIMIT 30',args).fetchall()
+        result=[]
+        for row in rows:
+            source=dict(row);current=True;metadata=json.loads(source['metadata'])
+            try:self.source_text(source)
+            except (OSError,ValueError,UnicodeError):current=False
+            result.append({'source_id':source['id'],'path':source['locator'],'file_sha256':source['digest'],
+                'current':current,**{k:metadata[k] for k in READ_FIELDS}})
+        return result
+
     def decide(self, session, title, value, refs=None, impact='关键交付', rationale=''):
         self.session(session)
         refs = refs or []
@@ -190,6 +245,7 @@ class Ledger:
                 with path.open('rb') as stream:
                     raw = stream.read(MAX_BYTES + 1)
                 source['current'] = len(raw) <= MAX_BYTES and sha(raw) == source['digest']
+                if source['origin']=='hook_file_read':source['content']=self.source_text(source,raw)
             except (OSError, ValueError):
                 source['current'] = False
         for decision in decisions:

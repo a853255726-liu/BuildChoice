@@ -1,4 +1,4 @@
-"""Agent-reported code locations with real file hashes, never correctness attestations."""
+"""Optional file associations for observed choices; no diff or semantic analysis."""
 import hashlib
 import json
 from .audit import MAX_BYTES, encode
@@ -40,6 +40,9 @@ def link(store, task, decision_id, revision, path, note, start_line=None, end_li
         latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(decision_id,)).fetchone()[0]
         if row is None or latest!=revision or row['state']=='superseded':
             raise ValueError('Implementation must reference the current decision revision')
+        from .acceptance import confirmed
+        confirmation,_=confirmed(store,task['id'],decision_id,revision,db)
+        record['confirmation_id']=confirmation['id']
         rows=db.execute("SELECT data_json FROM decision_v3_events WHERE task_id=? AND event_type='IMPLEMENTATION_LINKED' ORDER BY id",(task['id'],)).fetchall()
         previous={entry['link_id']:entry for entry in (json.loads(r[0]) for r in rows)}
         if previous.get(link_id)==record:return record

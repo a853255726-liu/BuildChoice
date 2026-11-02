@@ -12,6 +12,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$|^mcp__filesystem__read_(file|text_file)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py\"",
+            "timeout": 5,
+            "statusMessage": "BuildChoice: observe project read"
+          }
+        ]
+      }
     ]
   }
 }

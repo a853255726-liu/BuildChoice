@@ -30,6 +30,7 @@ def handle_prompt(event,workspace,settings_path=None):
                  '需要提取时，在同一次提取中附简短 coverage 依据，不增加第二轮复核；零候选正常继续。'
                  '已有待答卡先处理回复状态，一次一张卡。'+
                  '实际开发先读取项目决策记忆；普通参考不等于长期规则，冲突需核实，记忆不授予宿主操作权限。'+
+                 '用户明确要求保存或管理记忆时使用 decision-memory Skill；未提出时不主动询问是否长期保存。'+
                  ('检测到开发表达提示。' if hint else '')+
                  '用户回复状态：'+observed.get('confirmation_status','none')+'。'+
                  (observed.get('reply_hint','') if observed.get('confirmation_status')=='awaiting_user' else '')+

@@ -29,6 +29,55 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9._-]{1,119}$",
           "maxLength": 120
+        },
+        "risk_level": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "risk_warning": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "risk_basis": {
+          "enum": [
+            "observed",
+            "potential"
+          ]
+        },
+        "risk_reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "risk_condition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "risk_evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 10
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 10
+        },
+        "behavior": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
         }
       },
       "required": [
@@ -60,31 +109,26 @@
             "fact",
             "constraint"
           ]
+        },
+        "interpretation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
         }
       },
       "required": [
         "source_id"
       ],
-      "oneOf": [
+      "anyOf": [
         {
           "required": [
             "pointer"
-          ],
-          "not": {
-            "required": [
-              "quote"
-            ]
-          }
+          ]
         },
         {
           "required": [
             "quote"
-          ],
-          "not": {
-            "required": [
-              "pointer"
-            ]
-          }
+          ]
         }
       ]
     },
@@ -219,6 +263,37 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9._-]{1,119}$",
           "maxLength": 120
+        },
+        "scope_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 10
+        },
+        "material_change": {
+          "type": "boolean"
+        },
+        "engineering_risks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EngineeringRisk"
+          },
+          "maxItems": 11
+        },
+        "history_matches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryMatch"
+          },
+          "maxItems": 20
         }
       },
       "required": [
@@ -575,6 +650,30 @@
         },
         "coverage": {
           "$ref": "#/$defs/CoverageSummary"
+        },
+        "screen_status": {
+          "enum": [
+            "ASK_NOW",
+            "INSPECT",
+            "DEFER",
+            "PROCEED"
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object"
+          }
+        },
+        "risk_review": {
+          "type": "object"
+        },
+        "history_review": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         }
       },
       "required": [
@@ -777,6 +876,107 @@
         "provenance",
         "entries",
         "does_not_establish_completeness"
+      ]
+    },
+    "EngineeringRisk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "data_integrity",
+            "backup_recovery",
+            "performance",
+            "scalability",
+            "availability",
+            "vendor_lock_in",
+            "compatibility_migration",
+            "deployment_rollback",
+            "resource_cost",
+            "security_permissions",
+            "maintainability"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "consequence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "condition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "recoverability": {
+          "enum": [
+            "easy",
+            "costly",
+            "irreversible",
+            "unknown"
+          ]
+        },
+        "product_choice": {
+          "enum": [
+            "yes",
+            "no",
+            "uncertain"
+          ]
+        },
+        "relevance": {
+          "enum": [
+            "yes",
+            "no",
+            "uncertain"
+          ]
+        }
+      },
+      "required": [
+        "direction",
+        "severity",
+        "consequence",
+        "condition",
+        "recoverability",
+        "product_choice"
+      ]
+    },
+    "HistoryMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "memory_id": {
+          "type": "string",
+          "pattern": "^M[0-9A-F]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "relation": {
+          "enum": [
+            "same",
+            "related",
+            "conflict",
+            "different_scope"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "memory_id",
+        "revision",
+        "relation",
+        "rationale"
       ]
     }
   },

@@ -30,6 +30,8 @@ def build_plugin(root=ROOT):
     command = 'python "${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py"'
     events = {'UserPromptSubmit': [{'hooks': [{'type':'command','command':command,'timeout':5,
         'statusMessage':'BuildChoice: UserPromptSubmit'}]}]}
+    events['PostToolUse']=[{'matcher':'^Bash$|^mcp__filesystem__read_(file|text_file)$',
+        'hooks':[{'type':'command','command':command,'timeout':5,'statusMessage':'BuildChoice: observe project read'}]}]
     write_json(package/'hooks/hooks.json',{'description':'Prompt policy and observed decision replies; never blocks tasks.','hooks':events})
     marketplace = root/'.claude-plugin/marketplace.json'
     existing = json.loads(marketplace.read_text(encoding='utf-8')) if marketplace.exists() else {

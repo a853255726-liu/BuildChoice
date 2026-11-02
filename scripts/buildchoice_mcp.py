@@ -43,7 +43,7 @@ def main():
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         elif decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage')]
         return tools
 
     async def notify_tool_changes():
@@ -115,6 +115,9 @@ def main():
         session_handle from the actual UserPromptSubmit Hook. Include concise coverage from the same extraction.
         Sources must use collected IDs. Coverage does not prove completeness or alter routing.
         Returns ASK_NOW/INSPECT/DEFER/PROCEED; a card never authorizes host operations.
+        Read screen_status and diagnostics even with zero candidates. Engineering risks are
+        distinct from sensitive flags. Interpretations/history relations are Agent-declared;
+        only current literal evidence and eligible rule identities can resolve a choice.
         """
         require_enabled()
         return decisions.screen(request)
@@ -139,6 +142,20 @@ def main():
         require_enabled()
         return decisions.memory(query,include_archived,session_handle)
 
+    @server.tool(annotations=ToolAnnotations(readOnlyHint=False,destructiveHint=False,
+                                             idempotentHint=True,openWorldHint=False),structured_output=True)
+    def buildchoice_memory_manage(memory_id: str, revision: int, session_handle: str,
+                                  action: Literal['promote','unpin','forget','restore']='promote') -> dict[str,Any]:
+        """Apply the current real user's explicit memory request, never an Agent declaration.
+        Read buildchoice_memory first. Hook-bound management_request must contain exactly one
+        matching target and action; MCP rechecks confirmation, revision, scope, state and conflicts.
+        Clarify ambiguous intent/targets in natural language; no ID input or second confirmation
+        is needed for a clear request. Never invoke merely because a decision was confirmed.
+        Does not create user choices, expand scope or grant execution permission.
+        """
+        require_enabled()
+        return decisions.manage_memory(memory_id,revision,action,session_handle)
+
     @server.tool(annotations=annotation,structured_output=True)
     def buildchoice_decision_status(task_id: str | None = None, session_handle: str | None = None) -> dict[str,Any]:
         """Read V3 settings, pending decisions, coverage notes and confirmation history.
@@ -159,7 +176,7 @@ def main():
     def buildchoice_link_implementation(task_id: str, decision_id: str, revision: int, path: str, note: str,
                                        start_line: int | None = None, end_line: int | None = None,
                                        session_handle: str | None = None) -> dict[str,Any]:
-        """Link an actual workspace file to the current decision revision after editing it.
+        """Optional: associate an actual file with a current Hook-confirmed decision.
         Give a relative path, a short explanation and optional real line range. The server records
         a real file hash without executing Git or changing the file.
         The association is Agent-reported, not proof of correct implementation or human approval.
@@ -172,7 +189,9 @@ def main():
     def buildchoice_acceptance_prepare(task_id: str, decision_id: str, revision: int,
                                       criteria: list[dict[str,Any]], session_handle: str,
                                       idempotency_key: str) -> dict[str,Any]:
-        """Create immutable Agent-derived behavior criteria for the current Hook-confirmed decision.
+        """Optional experiment only; normal testing and acceptance belong to Codex.
+        Create immutable Agent-derived behavior criteria for the current Hook-confirmed decision.
+        Never invoke as a routine development step or independent requirements certification.
         Each criterion: criterion_id, description, basis, required, evidence_type='behavior', test_ids.
         Test IDs are actual unittest IDs under module buildchoice_tests. This does not approve new
         product rules, separately confirm the criteria or execute tests. See acceptance-v1 schema.
@@ -184,7 +203,9 @@ def main():
     def buildchoice_verify_decision(task_id: str, decision_id: str, revision: int, acceptance_id: str,
                                    code_evidence_refs: list[dict[str,Any]], session_handle: str,
                                    idempotency_key: str, execution_id: str | None = None) -> dict[str,Any]:
-        """Record per-criterion verification using real code references and optional collector execution.
+        """Optional experiment, only when explicitly requested; not independent certification.
+        Normal tests and result interpretation belong to Codex. Record per-criterion checks
+        using real code references and optional collector execution for compatibility.
         References: criterion_id, source_id, and pointer or quote from a real audit read.
         No command execution: run the collector explicitly through the existing authorized command
         path. A report path or Agent claim is not an execution receipt. Missing tests stay inconclusive.

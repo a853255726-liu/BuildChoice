@@ -151,7 +151,8 @@ class DecisionStore:
             if previous:
                 if not prompt_matches(previous['prompt_digest'],prompt): raise ValueError('Host turn reused with different input')
                 if previous['expires']<time.time(): return {'status':'unverified','reason':'EXPIRED_HOST_CONTEXT'}
-                return {'status':'observed','session_handle':previous['handle'],**json.loads(previous['outcome_json'])}
+                return {'status':'observed','session_handle':previous['handle'],
+                        **{k:v for k,v in json.loads(previous['outcome_json']).items() if not k.startswith('_')}}
             db.execute('UPDATE decision_v3_contexts SET expires=? WHERE workspace=? AND host_session_digest=? AND host_turn_digest<>?',
                        (time.time()-1,str(self.workspace),session_hash,turn_hash))
             outcome={'confirmation_status':'none'}; linked_task=None
@@ -192,11 +193,15 @@ class DecisionStore:
                         self.event(db,row['task_id'],'USER_REPLY_NOT_AUTOCONFIRMED',{'decision_id':row['id'],'prompt_digest':prompt_hash})
             handle='buildchoice-v3-ctx-'+secrets.token_urlsafe(24)
             if active is None:
-                from .decision_memory import observe_command
+                from .decision_memory import observe_command, observe_request
                 outcome.update(observe_command(self,db,prompt,turn_hash) or {})
+                if 'memory_status' not in outcome:
+                    request=observe_request(self,db,prompt,session_hash)
+                    if request:outcome['_memory_request']=request
             db.execute('INSERT INTO decision_v3_contexts VALUES(?,?,?,?,?,?,?,?,?)',
                        (handle,str(self.workspace),session_hash,turn_hash,prompt_hash,time.time()+self.ttl,None,linked_task,encode(outcome)))
-            return {'status':'observed','session_handle':handle,**outcome}
+            return {'status':'observed','session_handle':handle,
+                    **{k:v for k,v in outcome.items() if not k.startswith('_')}}
 
     def context(self, db, handle, owner, claim=False):
         if handle is None: return None
@@ -300,11 +305,11 @@ class DecisionStore:
         return {**dict(row),'applicable':True} if row else None
 
     def save_item(self, task_id, field_key, candidate, routing, existing=None):
+        from .candidate_identity import material_change
         if existing:
             ident=existing['id'];revision=existing['revision']
             old=json.loads(existing['candidate_json'])
-            if (old['options']!=candidate['options'] or old['category']!=candidate['category'] or
-                    not set(candidate['risk_flags']).issubset(old['risk_flags'])):
+            if material_change(old,candidate):
                 revision+=1
         else:ident='decv3-'+uuid.uuid4().hex;revision=1
         routing.update(decision_id=ident,revision=revision)

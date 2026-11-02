@@ -1,4 +1,4 @@
-"""All four lifecycle events enter this dependency-free, reviewable launcher."""
+"""Prompt and tool-read events enter this dependency-free, reviewable launcher."""
 from launch import run
 import argparse
 parser = argparse.ArgumentParser()

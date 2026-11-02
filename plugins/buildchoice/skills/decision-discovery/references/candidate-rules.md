@@ -15,6 +15,16 @@
 
 ## 请求形状
 
+工程风险不能全塞进敏感 risk_flags。保留原敏感标记及加强确认规则；工程方案通过 engineering_risks 分开记录 direction、severity、consequence、condition、recoverability、product_choice，可附 relevance。高/中后果且 product_choice=yes 的相关取舍不能被 engineering_detail=true 静默跳过；不影响当前步骤用 DEFER，影响不清用 INSPECT；product_choice=no 的普通工程实践不强制发卡。
+
+direction 可用 data_integrity / backup_recovery / performance / scalability / availability / vendor_lock_in / compatibility_migration / deployment_rollback / resource_cost / security_permissions / maintainability。它们是发现视角，不是提问配额，也不是独立风险评估结果。
+
+可附 history_matches（真实 memory_id、revision、same/related/conflict/different_scope 和 rationale）；语义判断由当前 Codex 推理产生。MCP 不把相似或 Agent 声称 same 视为允许复用。scope_key 与 conditions 表达实际适用范围，普通历史参考不升级为长期规则。
+
+Option 可附 risk_level=low/medium/high、risk_warning、risk_basis=observed/potential、risk_reason、risk_condition、risk_evidence_refs。高风险提示须有来源或明确条件推导；旧选项无需补字段。风险展示字段不进入选项语义身份，实际行为/适用性变化使用 value、behavior、conditions 或 candidate.material_change=true。结构化字段变化由服务端检查，无法判定的自然语言实质变化由 Codex 如实标记。
+
+EvidenceRef 的 interpretation 是语义解释，绝非确认；可同时提交 pointer、quote 供核验。指针原值、原文与文件哈希任何一项不匹配先检查。只有限定的结构化约束可支持直接继续，普通文字的 interpretation 不单独满足此条件。
+
 每个候选提供 candidate_id、field、category、question、impact、why_user_choice、needs_user_choice、current_dependency、risk_flags、evidence_refs、options、recommended_option_id、recommendation_reason。
 
 category：business_rule / access_control / data_privacy / cost_external / scope / engineering。
