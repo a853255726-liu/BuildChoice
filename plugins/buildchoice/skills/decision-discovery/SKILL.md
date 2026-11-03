@@ -45,7 +45,7 @@ evidence_refs 附相关 quote 与简短 interpretation；JSON 字段可同时附
 
 每项含 dimension、status、reason，可附 evidence_refs 与 candidate_ids。status 为 resolved / candidate / not_applicable / uncertain；reason 说明具体依据，最多 300 字符。来源必须真实采集，候选 ID 必须来自本次请求。未查清标 uncertain，不能编造不适用结论。零候选也应按已有信息记录简短依据。
 
-这些记录供后续检查，不是完整性证明，也不单独触发问题。不得因为 coverage 中出现 uncertain 就机械生成卡片；需要提问仍按原候选四道门槛判断。
+这些记录供后续检查，不是完整性证明，也不单独触发问题。不得因为 coverage 中出现 uncertain 就机械生成卡片；需要提问仍应满足实质功能后果、用户决策归属、尚无适用答案及当前相关性。
 
 ## 提交与处理
 
