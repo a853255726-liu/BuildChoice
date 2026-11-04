@@ -45,11 +45,13 @@ for result in archives:
         if 'core' in path.name:
             assert archive.read('LICENSE')==(root/'LICENSE').read_bytes()
             manifest=json.loads(archive.read('runtime_manifest.json'))
-            assert manifest['package_version']==VERSION=='0.10.1'
+            assert manifest['package_version']==VERSION=='0.11.0'
             assert not any('audit_web' in name or name.endswith(('.html','.css','.js')) for name in archive.namelist())
             assert 'scripts/buildchoice_audit.py' not in archive.namelist()
             assert {'scripts/buildchoice_run_verification.py','scripts/buildchoice_test_worker.py',
                 'docs/contracts/acceptance-v1.schema.json','docs/contracts/verification-v1.schema.json'}<=set(archive.namelist())
+            assert {'buildchoice/desktop/task_context.py','buildchoice/desktop/reply_interpretation.py',
+                'buildchoice/desktop/decision_document.py','docs/CONTEXT_WORKFLOW.md'}<=set(archive.namelist())
             assert not any('model' in name for name in archive.namelist())
             for name,entry in manifest['files'].items():
                 data=archive.read(name)

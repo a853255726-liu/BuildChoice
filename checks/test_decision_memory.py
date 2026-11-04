@@ -48,6 +48,7 @@ class MemoryTests(unittest.TestCase):
 
     def confirm(self,choice='A',cand=None,session='chat-1',service=None):
         service=service or self.service
+        cand={**(rule_candidate() if cand is None else cand),'suggested_action':'ASK_NOW','memory_intent':'change'}
         prompt='Implement saving '+uuid.uuid4().hex
         handle=self.hook(prompt,session)['session_handle']
         result=service.screen(self.request(prompt,handle,cand));item=result['decisions'][0]
@@ -177,7 +178,7 @@ class MemoryTests(unittest.TestCase):
         _,_,_,entry=self.confirm();self.command('长期记住',entry)
         for mutate in [lambda c:c['options'][0].update(tradeoff='Save immediately too.'),
                        lambda c:c.update(category='access_control'),
-                       lambda c:c.update(risk_flags=['payment']),
+                       lambda c:c.update(risk_flags=['payment'],suggested_action='ASK_NOW'),
                        lambda c:c['options'][0].update(label='Something else')]:
             changed=rule_candidate();mutate(changed)
             self.assertEqual(self.new_screen(changed)[2]['decisions'][0]['status'],'ASK_NOW')
@@ -210,7 +211,8 @@ class MemoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'CACHED_SCREEN_STALE'):service.screen(req)
         state=service.status(res['task_id'],req['session_handle'])['decisions'][0]
         self.assertEqual(state['confirmation_status'],'project_rule_stale')
-        self.assertEqual(state['status'],'ASK_NOW')
+        self.assertEqual(state['status'],'INSPECT')
+        self.assertEqual(state['validation_status'],'needs_review')
 
     def test_superseded_rule_cannot_be_restored_or_reused(self):
         task,item,_,entry=self.confirm();pin=self.command('长期记住',entry)
@@ -238,7 +240,8 @@ class MemoryTests(unittest.TestCase):
         source=ledger.read(audit['id'],'choice.json')
         cand=rule_candidate();cand['evidence_refs']=[{'source_id':source['id'],'pointer':'/chosen','relation':'constraint'}]
         decision=self.new_screen(cand)[2]['decisions'][0]
-        self.assertEqual(decision['status'],'ASK_NOW')
+        self.assertEqual(decision['status'],'INSPECT')
+        self.assertEqual(decision['validation_status'],'needs_review')
         self.assertEqual(decision['memory']['reason'],'PROJECT_RULE_CONFLICTS_WITH_SOURCE')
 
     def test_reused_task_source_change_invalidates_live_status(self):

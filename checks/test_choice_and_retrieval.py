@@ -102,7 +102,7 @@ class RetrievalIdentityTests(unittest.TestCase):
         confirm_rule(f,other,'B')
         item=screen(f,value)[3]
         self.assertEqual(item['status'],'ASK_NOW')
-        self.assertIn('PROJECT_RULES_CONFLICT',item['reason_codes'])
+        self.assertEqual(item['memory']['reason'],'PROJECT_RULES_CONFLICT')
 
     def test_chinese_phrases_rank_related_choice_and_single_character_noise_is_excluded(self):
         f=self.f;value=candidate(f)

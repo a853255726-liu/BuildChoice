@@ -48,7 +48,7 @@ class ScreenRecoveryTests(unittest.TestCase):
         path.write_text(json.dumps({'field':'Profile visibility','chosen':'Private'}),encoding='utf-8')
         ledger=Ledger(self.workspace);session=ledger.start('Synthetic requirement','Local fixture only')
         source=ledger.read(session['id'],'choice.json')
-        choice={**candidate(),'risk_flags':[],'category':'business_rule',
+        choice={**candidate(),'risk_flags':[],'category':'business_rule','suggested_action':'PROCEED',
             'evidence_refs':[{'source_id':source['id'],'pointer':'/chosen','relation':'constraint'}]}
         return path,self.request(candidates=[choice])
 

@@ -1,18 +1,19 @@
 # BuildChoice · MCP 接口
 
-候选字段中，Option 可带 risk_level / risk_warning / risk_basis / risk_reason / risk_condition / risk_evidence_refs，以及实际行为 behavior / conditions；Candidate 可带 engineering_risks、history_matches、scope_key、conditions、material_change。EvidenceRef 可同时附 quote、pointer 与 interpretation，解释不构成确认。ScreenResponse 包含 screen_status、diagnostics、risk_review、history_review，零候选也须检查诊断。详见[字段语义与示例](CANDIDATE_RISKS.md)。
+LLM 通过 `suggested_action` 提交业务处理建议，程序返回独立的 `validation_status`，核对结构、引用、身份和版本。Option 可带风险解释及 behavior / conditions；Candidate 可带 engineering_risks、history_matches、scope_key、conditions、material_change。EvidenceRef 可同时附 quote、pointer 与 interpretation；引用有效不等于解释正确。详见[字段语义与示例](CANDIDATE_RISKS.md)。
 
 本文面向插件集成与开发者。日常使用可直接在 Codex 对话中提出需求，见[决策卡指南](DECISION_GUIDANCE.md)。BuildChoice 通过 MCP 提供决策引导、项目记忆、实现关联、行为验证及文件证据接口。
 
 ## 连接与可用工具
 
-安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 16 个工具：
+安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 19 个工具：
 
 | 分组 | 工具 |
 |---|---|
 | 设置 | buildchoice_settings_read、buildchoice_settings_update、buildchoice_settings_status |
 | 文件证据与审计 | buildchoice_audit_start、buildchoice_audit_read、buildchoice_audit_decision、buildchoice_audit_report |
 | 决策 | buildchoice_screen_candidates、buildchoice_card_activate、buildchoice_decision_status、buildchoice_decision_prepare_revision |
+| 上下文与文档 | buildchoice_context、buildchoice_reply_interpret、buildchoice_decision_document |
 | 实现与验证 | buildchoice_link_implementation、buildchoice_acceptance_prepare、buildchoice_verify_decision |
 | 项目记忆 | buildchoice_memory、buildchoice_memory_manage |
 
@@ -22,7 +23,11 @@
 
 ## 读取文件证据
 
-优先读取 PostToolUse 上下文或 buildchoice_decision_status.observed_reads 中的 source_id、路径、范围、文件哈希和 current。该来源 origin=hook_file_read，正文不保存；服务端从仍匹配哈希的文件重建已返回范围。部分读取只允许范围内 quote，整文件记录才能使用 JSON pointer。不支持或没有有效记录时，显式创建来源收集会话：
+默认使用 `buildchoice_context(session_handle, query="", paths=[], task_id=null, since=null, max_chars=12000)`：一次返回当前聊天决策、项目记忆、来源与字面变化。paths 最多 20 个项目相对路径，读取实际文件并复用当前有效来源，无需额外 audit_start/read；max_chars 为 2000–50000。检查 omitted / content_truncated，截断部分不视为已返回。since 需是同项目、同聊天的 snapshot_id；快照最多保留 100 份。
+
+context 返回已答、待答、暂缓及恢复建议，查询不会创建确认、激活卡片或续期。默认包含来源待复核的记忆并标 needs_review，不包含已归档或遗忘项；跨聊天只共享项目参考。`changes` 比较文件哈希、决策和记忆状态，business_impact=requires_llm_assessment。
+
+PostToolUse 上下文和 buildchoice_decision_status.observed_reads 也提供 source_id、路径、范围、文件哈希和 current。origin=hook_file_read 的正文不保存；服务端从仍匹配哈希的文件重建已返回范围。部分读取只允许范围内 quote，整文件记录才能使用 JSON pointer。需要独立审计报告时可显式创建来源收集会话：
 
 ~~~json
 {"title":"小票保存规则","task":"核对已确认保存流程的相关资料"}
@@ -34,7 +39,7 @@
 {"session":"audit-...","path":"examples/receipt_review/receipt.json"}
 ~~~
 
-该路径是仓库内示例；实际集成应换成绑定项目内的文件。读取器返回 id、content、locator、digest 和读取时间。引用使用返回的 source_id，以及 JSON pointer 或精确 quote：
+该路径是仓库内示例；实际集成应换成绑定项目内的文件。读取器返回 id、content、locator、digest、reused 和读取时间。同会话、同路径、同文件版本重复读取复用来源；context 使用 source_id 字段。引用使用返回的来源编号，以及 JSON pointer 或精确 quote：
 
 ~~~json
 {"source_id":"src-...","pointer":"/amount"}
@@ -62,14 +67,24 @@ Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的
 
 ## 决策引导接口
 
-- `buildchoice_screen_candidates(request)`：校验候选、核对来源并按确定性规则给出四状态，附带 Agent 声明的覆盖依据；按 task_id + idempotency_key 防止重复登记。
+- `buildchoice_screen_candidates(request)`：接收 LLM 的 ASK_NOW / INSPECT / DEFER / PROCEED 建议，独立核对字段、来源及状态，附带 Agent 声明的覆盖依据；按 task_id + idempotency_key 防止重复登记。
+
+工具列表直接提供 Candidate 字段和枚举 Schema。最小候选需要 candidate_id、field、category、question、impact、options 和 suggested_action；其他说明可按需提供。priority=0..100 只用于调用方声明的排序，allow_defer 由调用方指定。错误返回紧凑字段路径与预期类型。响应同时保留 suggested_action 和 validation_status；来源失效时 status=INSPECT，不把文件变化解释为撤销用户选择。
 
 筛选的任务/句柄绑定、候选、事件及缓存响应在单一写事务中提交，失败整体回滚。缓存只在所引用文件、未读资源和决定/确认/覆盖快照仍匹配时重放；过期或旧格式缓存返回 `CACHED_SCREEN_STALE`，执行中输入变化返回 `SCREEN_INPUT_CHANGED_DURING_EVALUATION`。前者需读取当前来源/状态后换新键筛选，后者未提交该请求的写入。新筛选的语义指纹不包含连接句柄或重复的 task_id，但先校验当前会话归属；改变候选等语义输入仍拒绝复用同一键。
-- `buildchoice_card_activate(task_id, decision_id, revision, idempotency_key, session_handle)`：同会话最多激活一张待答卡，返回固定文本与 delivery_status=not_observed。
+- `buildchoice_card_activate(task_id, decision_id, revision, idempotency_key, session_handle)`：同会话最多激活一张待答卡，返回固定文本与 delivery_status=not_observed；重复激活同一卡片即使换键也不续期或重复写激活事件。
 - `buildchoice_decision_status(task_id?, session_handle?)`：读取开关、未决项和实际确认历史。可信任务需要当前 Hook 句柄，不能只传 Agent 自报的会话 ID。
 - `buildchoice_decision_prepare_revision(task_id, decision_id, revision, candidate, reason, session_handle)`：追加新版本，清除旧卡激活状态，新版本必须重新得到明确选择。
 
-确认来自原生 Hook，支持当前卡片的明确字母、序号、完整名称和推荐方案表达；含糊表达返回 awaiting_user 和 reply_hint。没有将 Agent 自报选择写成用户确认的接口。
+直接解析当前卡片的明确字母、序号、完整名称和推荐表达，记录 user_message_observed。复杂但明确的回复可调用 `buildchoice_reply_interpret(task_id, decision_id, revision, choice_id, quote, reason, session_handle)`：quote 必须在本轮真实消息中，冻结的卡片和当前版本须一致且未过期，返回 llm_interpreted_user_reply、semantic_verified_by_program=false。该工具记录 LLM 对真实回复的解释，不将语义判断标成程序核验结果；无原消息、换选项版本或跨聊天均拒绝。问句、否定、新条件与含糊表达由 LLM 先澄清。
+
+`processing` 返回 duplicate、already_answered 和 previous_state。同任务相同候选换键重筛时保留当前确认或待答卡；重复候选不会创建第二份确认。暂缓项由上下文返回，不由程序自动决定重新询问。
+
+## 决策文档
+
+`buildchoice_decision_document(session_handle, task_id=null, include_archived=false, write=false, path="BUILDCHOICE_DECISIONS.md")` 返回 Markdown 与结构化决策、范围、来源和字面修订差异。默认展示项目当前参考与当前聊天任务；task_id 需属于当前聊天。默认预览，write=true 才原子写入项目 Markdown，路径的父目录须已存在。
+
+只能覆盖带 BuildChoice 生成标记的文档；已有手写文件、私有路径、链接及越界路径拒绝。写文档不改变账本或规则。当前来源待复核项仍展示原选择，归档/遗忘/被替代项默认隐藏。详见[上下文与恢复](CONTEXT_WORKFLOW.md)。
 
 ## 决定与实现关联
 

@@ -31,7 +31,7 @@ def main():
         'For audit: start a session, read real workspace sources with buildchoice_audit_read, register important '
         'decisions with JSON pointers or exact quotes, then return buildchoice_audit_report. Source binding is not '
         'semantic approval. Task declarations are not verified user confirmation. No automatic audit. '
-        'V3 uses one candidate extraction with concise coverage notes, verified sources and deterministic rules. '
+        'The LLM judges importance, applicability and timing. Python validates formats, citations and state. '
         'No second review pass. Coverage is Agent-declared and never proves completeness or grants authorization.'))
     annotation = ToolAnnotations(readOnlyHint=True, destructiveHint=False,
                                  idempotentHint=False, openWorldHint=False)
@@ -40,10 +40,16 @@ def main():
 
     async def available_tools():
         tools = await server.list_tools()
+        from buildchoice.desktop.decision_contracts import input_schema
+        for tool in tools:
+            if tool.name=='buildchoice_screen_candidates':
+                contract=input_schema('ScreenRequest');tool.inputSchema={'type':'object','properties':{'request':{'$ref':contract['$ref']}},'required':['request'],'additionalProperties':False,'$defs':contract['$defs']}
+            elif tool.name=='buildchoice_decision_prepare_revision':
+                contract=input_schema('Candidate');tool.inputSchema['properties']['candidate']={'$ref':contract['$ref']};tool.inputSchema['$defs']=contract['$defs']
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         elif decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage','buildchoice_context','buildchoice_reply_interpret','buildchoice_decision_document')]
         return tools
 
     async def notify_tool_changes():
@@ -110,23 +116,58 @@ def main():
 
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_screen_candidates(request: dict) -> dict[str,Any]:
-        """V3 pilot only. Screen real product decisions using decision.v3 schema.
-        Provide original task_text, phase, next_step, real candidates, idempotency_key and optional
-        session_handle from the actual UserPromptSubmit Hook. Include concise coverage from the same extraction.
-        Sources must use collected IDs. Coverage does not prove completeness or alter routing.
-        Returns ASK_NOW/INSPECT/DEFER/PROCEED; a card never authorizes host operations.
-        Read screen_status and diagnostics even with zero candidates. Engineering risks are
-        distinct from sensitive flags. Interpretations/history relations are Agent-declared;
-        only current literal evidence and eligible rule identities can resolve a choice.
+        """Record LLM recommendations; validate structure, current citations and task ownership.
+        Each candidate supplies suggested_action=ASK_NOW/INSPECT/DEFER/PROCEED. Importance,
+        risk meaning, source applicability and semantic equivalence are LLM judgments.
+        Read validation_status separately. Use buildchoice_context to reuse real sources.
         """
         require_enabled()
         return decisions.screen(request)
+
+    @server.tool(annotations=annotation,structured_output=True)
+    def buildchoice_context(session_handle: str, query: str = '', paths: list[str] | None = None,
+                            task_id: str | None = None, since: str | None = None, max_chars: int = 12000) -> dict[str,Any]:
+        """One bounded query for pending/answered/deferred decisions, project memory and current sources.
+        paths reads workspace files and reuses valid receipts; no separate audit session is needed.
+        since is a prior snapshot_id from this same chat, returning literal changes, not business impact.
+        Inspect omitted/content_truncated. Reuse active cards and recorded choices after reconnect.
+        This never confirms a choice, changes a rule or authorizes execution.
+        """
+        require_enabled()
+        return decisions.context_bundle(session_handle,query,paths,task_id,since,max_chars)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_reply_interpret(task_id: str, decision_id: str, revision: int,
+                                    choice_id: Literal['A','B','C'], quote: str, reason: str,
+                                    session_handle: str) -> dict[str,Any]:
+        """Bind the LLM's reading of a real pending user reply to its current option/version.
+        Supply an exact quote from the current user message and your interpretation reason.
+        Only select when the user clearly chose this option; clarify questions, negations,
+        competing options or changed requirements. Python verifies source/card/version, not meaning.
+        Records llm_interpreted_user_reply with semantic_verified_by_program=false.
+        Never use an Agent claim or document as user authorization; no host execution permission.
+        """
+        require_enabled()
+        return decisions.interpret_reply(task_id,decision_id,revision,choice_id,quote,reason,session_handle)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_decision_document(session_handle: str, task_id: str | None = None,
+                                      include_archived: bool = False, write: bool = False,
+                                      path: str = 'BUILDCHOICE_DECISIONS.md') -> dict[str,Any]:
+        """Generate readable recorded choices, scope, provenance, pending items and literal changes.
+        write=false returns Markdown; write=true atomically saves a generated project document.
+        Existing user-authored files and linked/private paths are never overwritten.
+        Changed references need LLM review; this does not revoke user choices or certify code.
+        """
+        require_enabled()
+        return decisions.decision_document(session_handle,task_id,include_archived,write,path)
 
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_card_activate(task_id: str, decision_id: str, revision: int, idempotency_key: str,
                            session_handle: str | None = None) -> dict[str,Any]:
         """Activate exactly one unresolved card. Show the returned message in the current conversation.
-        Activation is not proof of UI delivery. Actual Hook-observed replies are the sole verified channel.
+        Activation is not proof of UI delivery. Replies must bind a real Hook message;
+        direct parsing and LLM interpretation have distinct provenance.
         """
         require_enabled()
         return decisions.activate(task_id,decision_id,revision,idempotency_key,session_handle)

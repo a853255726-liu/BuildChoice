@@ -294,6 +294,23 @@
             "$ref": "#/$defs/HistoryMatch"
           },
           "maxItems": 20
+        },
+        "suggested_action": {
+          "enum": [
+            "ASK_NOW",
+            "INSPECT",
+            "DEFER",
+            "PROCEED"
+          ],
+          "description": "The LLM recommends the business action; Python validates references and state only."
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "allow_defer": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -302,14 +319,20 @@
         "category",
         "question",
         "impact",
-        "why_user_choice",
-        "needs_user_choice",
-        "current_dependency",
-        "risk_flags",
-        "evidence_refs",
-        "options",
-        "recommended_option_id",
-        "recommendation_reason"
+        "options"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "suggested_action"
+          ]
+        },
+        {
+          "required": [
+            "needs_user_choice",
+            "current_dependency"
+          ]
+        }
       ]
     },
     "Resource": {
@@ -396,6 +419,14 @@
             "$ref": "#/$defs/CoverageEntry"
           },
           "maxItems": 6
+        },
+        "suggested_action": {
+          "enum": [
+            "ASK_NOW",
+            "INSPECT",
+            "DEFER",
+            "PROCEED"
+          ]
         }
       },
       "required": [
@@ -606,6 +637,28 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9._-]{1,119}$",
           "maxLength": 120
+        },
+        "validation_status": {
+          "enum": [
+            "valid",
+            "needs_evidence",
+            "needs_review",
+            "stale"
+          ]
+        },
+        "semantic_judgment_by": {
+          "const": "llm"
+        },
+        "suggested_action": {
+          "enum": [
+            "ASK_NOW",
+            "INSPECT",
+            "DEFER",
+            "PROCEED"
+          ]
+        },
+        "processing": {
+          "type": "object"
         }
       },
       "required": [
@@ -674,6 +727,25 @@
           "items": {
             "type": "object"
           }
+        },
+        "validation_status": {
+          "enum": [
+            "valid",
+            "needs_evidence",
+            "needs_review",
+            "stale"
+          ]
+        },
+        "semantic_judgment_by": {
+          "const": "llm"
+        },
+        "suggested_action": {
+          "enum": [
+            "ASK_NOW",
+            "INSPECT",
+            "DEFER",
+            "PROCEED"
+          ]
         }
       },
       "required": [

@@ -143,6 +143,11 @@ class Ledger:
         if len(raw) > MAX_BYTES:
             raise ValueError('Evidence exceeds 256 KiB; select a smaller source')
         content = raw.decode('utf-8-sig')
+        with self.connect() as db:
+            prior=db.execute('SELECT * FROM sources WHERE session=? AND locator=? AND digest=? AND origin=? ORDER BY rowid DESC LIMIT 1',
+                (session,path.relative_to(self.workspace).as_posix(),sha(raw),'collector_file_read')).fetchone()
+        if prior and prior['content']==content:
+            return {**dict(prior),'reused':True}
         source = {'id': 'src-' + uuid.uuid4().hex[:16], 'session': session,
                   'locator': path.relative_to(self.workspace).as_posix(), 'content': content,
                   'digest': sha(raw), 'created': now(), 'origin': 'collector_file_read',
@@ -151,7 +156,7 @@ class Ledger:
         with self.connect() as db:
             db.execute('INSERT INTO sources VALUES(:id,:session,:locator,:content,:digest,:created,:origin,:metadata)', source)
             self.event(db, session, 'SOURCE_READ', {k: source[k] for k in ('id', 'locator', 'digest')})
-        return source
+        return {**source,'reused':False}
 
     def observe_read(self, event, relative, raw, start, end, fragment):
         """Store only a verified range/hash receipt, never the observed tool output."""
@@ -173,11 +178,14 @@ class Ledger:
 
     def source_text(self, source, raw=None):
         """Reconstruct only the range actually returned, from the still-current file."""
-        if source['origin']=='collector_file_read':return source['content']
-        if source['origin']!='hook_file_read':raise ValueError('Untrusted source origin')
+        if source['origin'] not in ('collector_file_read','hook_file_read'):raise ValueError('Untrusted source origin')
         if raw is None:
             with self.path(source['locator']).open('rb') as stream:raw=stream.read(MAX_BYTES+1)
         if len(raw)>MAX_BYTES or sha(raw)!=source['digest']:raise ValueError('Observed file version changed')
+        if source['origin']=='collector_file_read':
+            content=raw.decode('utf-8-sig')
+            if content!=source['content']:raise ValueError('Collected content differs from its file version')
+            return content
         metadata=json.loads(source['metadata']);lines=raw.decode('utf-8-sig').splitlines()
         fragment='\n'.join(lines[metadata['start_line']-1:metadata['end_line']])
         if sha(fragment.encode())!=metadata['returned_sha256']:raise ValueError('Observed range changed')

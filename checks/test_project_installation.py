@@ -115,7 +115,7 @@ class ProjectInstallationTests(unittest.TestCase):
         import threading
         a=self.initialize(self.a,'pilot');self.initialize(self.b,'off')
         config=json.loads((Path(a['plugin_root'])/'.mcp.json').read_text())['mcpServers']['buildchoice']
-        for directory,count in ((self.a,16),(self.b,8)):
+        for directory,count in ((self.a,19),(self.b,8)):
             env={key:value for key,value in os.environ.items() if key not in ('BUILDCHOICE_WORKSPACE','BUILDCHOICE_V3_SETTINGS','BUILDCHOICE_SETTINGS')}
             process=subprocess.Popen([config['command'],*config['args']],cwd=directory,env=env,
                 stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,encoding='utf-8')

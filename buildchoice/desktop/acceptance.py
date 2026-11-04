@@ -36,7 +36,7 @@ def confirmed(store, task_id, decision_id, revision, db=None):
     latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(decision_id,)).fetchone()[0]
     if task is None or task['binding_status']!='hook_observed' or row is None or row['state']!='confirmed' or latest!=revision:
         raise ValueError('CURRENT_OBSERVED_CONFIRMATION_REQUIRED')
-    confirmation=db.execute("SELECT * FROM decision_v3_confirmations WHERE decision_id=? AND revision=? AND provenance='user_message_observed'",
+    confirmation=db.execute("SELECT * FROM decision_v3_confirmations WHERE decision_id=? AND revision=? AND provenance IN ('user_message_observed','llm_interpreted_user_reply')",
                             (decision_id,revision)).fetchone()
     if confirmation is None:raise ValueError('CURRENT_OBSERVED_CONFIRMATION_REQUIRED')
     candidate=json.loads(row['candidate_json'])

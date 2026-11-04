@@ -189,8 +189,11 @@ class DecisionStore:
                         db.execute("UPDATE decision_v3_items SET state='needs_explanation' WHERE id=? AND revision=?",(row['id'],row['revision']))
                         linked_task=row['task_id'];outcome={'confirmation_status':'awaiting_user','decision_id':row['id'],
                             'reason':'EXPLICIT_CHOICE_REQUIRED','delivery_status':'not_observed',
-                            'reply_hint':'可回复“我选第二个”、完整方案名称，或单独的选项字母。'}
+                            'reply_hint':'结合本轮原话判读当前卡片；明确选择可绑定原话记录，含糊或新增条件时继续澄清。'}
                         self.event(db,row['task_id'],'USER_REPLY_NOT_AUTOCONFIRMED',{'decision_id':row['id'],'prompt_digest':prompt_hash})
+                        if len(prompt)<=8000:
+                            outcome['_reply']={'text':prompt,'decision_id':row['id'],'revision':row['revision'],
+                                'card_digest':fingerprint(card),'message_digest':prompt_hash}
             handle='buildchoice-v3-ctx-'+secrets.token_urlsafe(24)
             if active is None:
                 from .decision_memory import observe_command, observe_request
@@ -305,11 +308,11 @@ class DecisionStore:
         return {**dict(row),'applicable':True} if row else None
 
     def save_item(self, task_id, field_key, candidate, routing, existing=None):
-        from .candidate_identity import material_change
+        from .candidate_identity import material_change, candidate_content
         if existing:
             ident=existing['id'];revision=existing['revision']
             old=json.loads(existing['candidate_json'])
-            if material_change(old,candidate):
+            if candidate_content(old)!=candidate_content(candidate) and material_change(old,candidate):
                 revision+=1
         else:ident='decv3-'+uuid.uuid4().hex;revision=1
         routing.update(decision_id=ident,revision=revision)
@@ -318,11 +321,19 @@ class DecisionStore:
     def write_item(self, task_id, field_key, candidate, result, existing=None):
         ident=result['decision_id'];revision=result['revision']
         state={'ASK_NOW':'screened','INSPECT':'inspecting','DEFER':'deferred','PROCEED':'screened'}[result['status']]
-        if existing and result['confirmation_status']=='user_message_observed' and result['status']=='PROCEED' and revision==existing['revision']:state='confirmed'
+        if existing and revision==existing['revision']:
+            if self.confirmation(existing):state='confirmed'
+            elif existing['state'] in ('card_active','needs_explanation') and result.get('suggested_action') not in ('DEFER','PROCEED'):
+                result['card']=json.loads(existing['routing_json'])['card']
+                state=existing['state']
+            elif existing['state']=='deferred' and result.get('processing',{}).get('duplicate'):
+                state=existing['state']
         with self.connect() as db:
             self.begin(db)
             if existing and revision!=existing['revision']:
                 db.execute("UPDATE decision_v3_items SET state='superseded' WHERE id=? AND revision=?",(ident,existing['revision']))
+                db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE decision_id=?',(ident,))
+            elif existing and state not in ('card_active','needs_explanation'):
                 db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE decision_id=?',(ident,))
             db.execute('INSERT INTO decision_v3_items VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id,revision) DO UPDATE SET candidate_json=excluded.candidate_json,routing_json=excluded.routing_json,state=excluded.state',
                 (ident,revision,task_id,field_key,encode(candidate),encode(result),state,0,now()))
@@ -357,6 +368,13 @@ class DecisionStore:
                 active=None
             if active and active['decision_id'] and (active['decision_id'],active['revision'])!=(decision_id,revision):
                 raise ValueError('Another card is already active in this host session')
+            if active and active['decision_id']==decision_id and active['revision']==revision:
+                response={'schema_version':'decision.v3','task_id':task['id'],'decision_id':decision_id,'revision':revision,
+                    'state':row['state'],'delivery_status':active['delivery_status'],'confirmation_status':'awaiting_user',
+                    'card':result['card'],'message':render(result['card'],position,total,task['binding_status']=='hook_observed'),
+                    'already_active':True,'does_not_authorize_host_operations':True}
+                db.execute('INSERT INTO decision_v3_operations VALUES(?,?,?,?,?)',(task['id'],'activate',key,fingerprint(given),encode(response)))
+                return response
             db.execute('INSERT INTO decision_v3_active VALUES(?,?,?,?,?,?) ON CONFLICT(workspace,host_session_digest) DO UPDATE SET decision_id=excluded.decision_id,revision=excluded.revision,expires=excluded.expires,delivery_status=excluded.delivery_status',
                        (str(self.workspace),scope,decision_id,revision,time.time()+self.ttl,'not_observed'))
             db.execute("UPDATE decision_v3_items SET state='card_active' WHERE id=? AND revision=?",(decision_id,revision))
@@ -378,7 +396,10 @@ class DecisionStore:
             if row is None or revision!=latest:raise ValueError('Revision source is stale')
             if candidate_key(candidate)!=row['field_key']:raise ValueError('A revision must preserve decision identity')
             next_revision=revision+1
-            result=json.loads(row['routing_json']);result.update(revision=next_revision,status='ASK_NOW',reason_codes=['REVISION_REQUIRES_NEW_USER_CHOICE'],confirmation_status='awaiting_user')
+            result=json.loads(row['routing_json']);result.update(revision=next_revision,status='ASK_NOW',
+                suggested_action='ASK_NOW',semantic_judgment_by='llm',
+                reason_codes=['REVISION_REQUIRES_NEW_USER_CHOICE'],confirmation_status='awaiting_user')
+            result.pop('processing',None)
             result.pop('memory',None)
             for name in ('model_status','model_fields'):result.pop(name,None)
             result['card']=make_card(decision_id,next_revision,candidate,{'effective_dependency':candidate['current_dependency']})
@@ -397,7 +418,7 @@ class DecisionStore:
                 current=json.loads(row['routing_json']);current.update(state=row['state'],needs_recheck=bool(row['needs_recheck']),confirmation=self.confirmation(row))
                 for name in ('model_status','model_fields'):current.pop(name,None)
                 if current['confirmation']:
-                    current.update(status='PROCEED',card=None,confirmation_status='user_message_observed')
+                    current.update(status='PROCEED',card=None,confirmation_status=current['confirmation']['provenance'])
                 decisions.append(current)
             confirmations=[dict(r) for r in db.execute('SELECT c.* FROM decision_v3_confirmations c JOIN decision_v3_items i ON c.decision_id=i.id AND c.revision=i.revision WHERE i.task_id=? ORDER BY c.created',(task['id'],))]
             coverage_row=db.execute("SELECT data_json FROM decision_v3_events WHERE task_id=? AND event_type='COVERAGE_RECORDED' ORDER BY id DESC LIMIT 1",(task['id'],)).fetchone()

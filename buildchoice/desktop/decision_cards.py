@@ -9,7 +9,7 @@ def make_card(decision_id, revision, candidate, route):
     card = {'revision': revision, 'display_id': 'D' + decision_id.split('-')[-1][:8].upper(),
             'question': candidate['question'], 'why_it_matters': candidate['impact'], 'options': candidate['options'],
             'recommendation': recommendation, 'allow_discuss': True,
-            'allow_defer': route['effective_dependency'] == 'no' or not candidate['risk_flags'],
+            'allow_defer': candidate.get('allow_defer',True),
             'blocked_steps': candidate.get('depends_on', []) or ([candidate['field']] if route['effective_dependency'] != 'no' else [])}
     return validate('Card', card)
 

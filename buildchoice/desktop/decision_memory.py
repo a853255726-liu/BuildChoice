@@ -169,7 +169,7 @@ def records(store, db, clock=None):
         ON i.id=c.decision_id AND i.revision=c.revision
         JOIN decision_v3_tasks t ON t.id=i.task_id
         WHERE t.workspace=? AND t.binding_status='hook_observed'
-        AND c.provenance='user_message_observed'
+        AND c.provenance IN ('user_message_observed','llm_interpreted_user_reply')
         ORDER BY c.created, c.id''', (str(store.workspace),)).fetchall()
     latest = {r['id']: r['revision'] for r in db.execute('''SELECT i.id, max(i.revision) AS revision
         FROM decision_v3_items i JOIN decision_v3_tasks t ON t.id=i.task_id
@@ -199,7 +199,7 @@ def records(store, db, clock=None):
                  else 'needs_review' if not sources_current(store,db,candidate['evidence_refs'],checked) else 'active')
         result.append({'memory_id': ident,'decision_key':decision_key(candidate), 'task_id': row['task_id'], 'decision_id': row['id'],
             'revision': row['revision'], 'confirmation_id': row['confirmation_id'],
-            'provenance': 'user_message_observed', 'field': candidate['field'],
+            'provenance': row['provenance'], 'semantic_verified_by_program':False, 'field': candidate['field'],
             'category': candidate['category'], 'question': candidate['question'],
             'choice': chosen, 'options': candidate['options'], 'risk_flags': candidate['risk_flags'],
             'scope_key':candidate.get('scope_key','project'),'conditions':candidate.get('conditions',[]),
@@ -224,7 +224,7 @@ def choice_identity(option):
 def rule_meaning(entry):
     chosen=entry['choice']
     return (entry['category'],choice_identity(chosen),
-        '' if 'value' in chosen or chosen.get('option_key') else chosen['tradeoff'],tuple(sorted(entry['risk_flags'])))
+        '' if 'value' in chosen or chosen.get('option_key') else chosen['tradeoff'])
 
 
 def conflicts(entries):
@@ -236,13 +236,14 @@ def conflicts(entries):
             for group in groups.values() if len({rule_meaning(e) for e in group}) > 1]
 
 
-def recall(store, db, query='', include_archived=False, limit=30):
+def recall(store, db, query='', include_archived=False, limit=30, include_review=False):
     if not isinstance(query, str) or len(query) > 2000:
         raise ValueError('Memory query must be at most 2000 characters')
     if type(include_archived) is not bool:
         raise ValueError('include_archived must be boolean')
     entries = records(store, db)
-    visible = [e for e in entries if include_archived or e['state'] == 'active']
+    visible = [e for e in entries if include_archived or e['state'] == 'active' or
+               (include_review and e['state']=='needs_review')]
     query_terms=terms(query)
     documents={e['memory_id']:terms(e['field']+' '+e['question']+' '+e['scope_key']+' '+
         ' '.join(e['conditions'])+' '+' '.join(o['label']+' '+o.get('tradeoff','') for o in e['options'])) for e in visible}
@@ -311,7 +312,7 @@ def match_candidate(store, db, candidate, task_id):
     """Only explicit live rules with matching decision/category/option identities apply.
 
     The Agent preserves stable decision keys; lexical retrieval never auto-confirms scope.
-    Sensitive actions still go through the normal decision and host authorization paths.
+    Reuse never grants permission for host operations.
     """
     rules = [e for e in records(store, db) if e['state'] == 'active' and e['tier'] == 'rule'
              and e['task_id'] != task_id and e['decision_key']==decision_key(candidate) and scope(e)==scope(candidate)]
@@ -339,7 +340,5 @@ def match_candidate(store, db, candidate, task_id):
          options[0]['tradeoff'] == rule['choice']['tradeoff']))
     if not compatible:
         return {'status': 'conflict', 'memory_ids': ids, 'reason': 'PROJECT_RULE_SCOPE_OR_OPTIONS_CHANGED'}
-    if candidate['risk_flags'] or rule['risk_flags']:
-        return {'status': 'reference_only', 'memory_ids': ids, 'reason': 'SENSITIVE_RULE_REQUIRES_CURRENT_CHOICE'}
     return {'status': 'applicable', 'memory_ids': ids, 'choice_id': options[0]['id'],
         'source_confirmation_id': rule['confirmation_id'], 'reason': 'PROJECT_MEMORY_RULE'}

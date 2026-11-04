@@ -9,7 +9,7 @@ description: 查询 BuildChoice 项目已确认的决策记忆；在用户明确
 
 用户可以说“把刚才的选择长期记住”“以后这个项目都按这个方案来”“把人工核对设为项目默认规则”“记住之前关于数据存储的决定”。也可查询、取消长期保存、遗忘或恢复已有记忆。普通 A/B 回答只创建 reference；没有明确管理请求时，不建议升级、不追问是否长期保存。
 
-调用 `buildchoice_memory(query, include_archived, session_handle)`，用用户提及的行为、主题或方案检索 SQLite 历史。需要恢复时包含归档记录。结合对话判断目标含义，检查已选方案、revision、state、scope_key、conditions 和冲突。相似检索结果不代表修改授权，也不能把未选选项当成原选择。
+优先复用 `buildchoice_context` 中的 memory 和 management_request；需要更完整或归档结果时调用 `buildchoice_memory(query, include_archived, session_handle)`，用用户提及的行为、主题或方案检索 SQLite 历史。需要恢复时包含归档记录。结合对话判断目标含义，检查已选方案、revision、state、scope_key、conditions 和冲突。相似检索结果不代表修改授权，也不能把未选选项当成原选择。
 
 查询返回的 `management_request` 来自真实 Hook，包含 action、targets 和 reason。它在用户消息到达时锁定候选：“刚才/这个方案”只对应本聊天最近的已确认决定；具名目标可以引用本项目其他聊天的决定。服务端只接受明确表达且能按原名称、主题或稳定键定位的目标，不声称独立验证任意语义改写。
 

@@ -262,14 +262,14 @@ class GuidanceTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.service.activate(*args)
         self.service.prepare_revision(first['task_id'],item['decision_id'],1,candidate(),'New preference')
         with self.assertRaises(ValueError):self.service.activate(*args)
-        # A re-screen can change a rendered question without changing the options/revision.
+        # A pending card keeps its displayed text until an explicit revision.
         separate=self.service.screen(self.request(task_text='Another task'))
         second=separate['decisions'][0]
         self.service.activate(separate['task_id'],second['decision_id'],1,'second')
         changed={**candidate(),'question':'Who can read the updated profile?'}
         self.service.screen(self.request([changed],task_text='Another task',task_id=separate['task_id']))
-        with self.assertRaises(ValueError):
-            self.service.activate(separate['task_id'],second['decision_id'],1,'second')
+        resumed=self.service.activate(separate['task_id'],second['decision_id'],1,'second')
+        self.assertEqual(resumed['card']['question'],second['card']['question'])
 
     def test_four_routes_use_evidence_and_dependency(self):
         self.assertEqual(route(candidate(),{})['status'],'ASK_NOW')

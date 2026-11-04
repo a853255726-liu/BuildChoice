@@ -16,20 +16,15 @@ def scope(candidate):
     return (candidate.get('scope_key','project'),candidate.get('conditions',[]))
 
 
-def important_engineering(candidate):
-    return [r for r in candidate.get('engineering_risks',[]) if r['product_choice']=='yes'
-            and r['severity'] in ('medium','high') and r.get('relevance','yes')!='no']
+def candidate_content(candidate):
+    return {k:v for k,v in candidate.items() if k not in ('candidate_id','_candidate_ids')}
 
 
 def material_change(old, new):
-    if (not options_equal(old['options'],new['options']) or old['category']!=new['category']
-            or scope(old)!=scope(new) or new.get('material_change',False)
-            or not set(new['risk_flags']).issubset(old['risk_flags'])):
-        return True
-    def impacts(candidate):
-        return {(r['direction'],r['severity'],r['condition'],r['recoverability'])
-                for r in important_engineering(candidate)}
-    return not impacts(new).issubset(impacts(old))
+    def identity(candidate):
+        return [{k:o[k] for k in ('id','option_key','value','behavior','conditions') if k in o} for o in candidate['options']]
+    return (identity(old)!=identity(new) or old['category']!=new['category'] or
+            scope(old)!=scope(new) or new.get('material_change',False))
 
 
 def merge_risk_presentation(prior, incoming):

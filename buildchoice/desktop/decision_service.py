@@ -1,9 +1,9 @@
-"""Coordinate V3 contracts, verified evidence, rule routing and persisted cards."""
+"""Validate LLM declarations and bind real sources to persisted decision state."""
 import hashlib
 import json
 from .audit import encode, pointer_value, MAX_BYTES
-from .candidate_policy import deduplicate, route, sort_key, field_key, candidate_key,risk_diagnostics
-from .candidate_identity import material_change,RISK_PRESENTATION
+from .candidate_policy import deduplicate, route, sort_key, field_key, candidate_key
+from .candidate_identity import material_change,candidate_content,RISK_PRESENTATION
 from .decision_cards import make_card
 from .decision_contracts import validate
 from .decision_settings import read as read_settings
@@ -22,6 +22,12 @@ class DecisionService:
         config=self.settings()
         if config['mode']!='pilot':raise ValueError('V3_DISABLED')
         return DecisionStore(self.workspace,self.database,config['context_ttl_seconds'])
+
+    def source_paths(self, store, verified_ids):
+        with store.connect() as db:
+            return {row['locator'] for ident in verified_ids for row in db.execute(
+                'SELECT s.locator FROM sources s JOIN sessions t ON t.id=s.session WHERE s.id=? AND t.workspace=?',
+                (ident,str(store.workspace)))}
 
     def evidence(self, store, candidate, resources, host_session_digest=None):
         result={'status':'missing','invalid':False,'conflict':False,'unread':False,'insufficient':False,
@@ -58,7 +64,7 @@ class DecisionService:
                         literals.append(encode(actual));result['observed_values'].append(actual)
                     supported=literal and any(encode(actual)==encode(o.get('value',o['label'])) for o in candidate['options'])
                     constraint=constraint or supported
-                    if not supported:result['insufficient']=True
+                    # Applicability of prose and business meaning belongs to the LLM.
                 if reference.get('interpretation'):
                     result['interpretations'].append({'source_id':source['id'],'text':reference['interpretation'],
                         'provenance':'agent_declared','semantic_validity_independently_verified':False})
@@ -67,12 +73,13 @@ class DecisionService:
                 result['source_ids'].append(source['id'])
             except (OSError,ValueError,KeyError,IndexError,TypeError):result['invalid']=True
         result['conflict']=len(set(literals))>1
+        verified_paths=self.source_paths(store,result['source_ids'])
         observed=store.ledger.observed_reads(host_session_digest,[r['path'] for r in resources]) if resources else []
         for resource in resources:
             if field_key(candidate['field']) in {field_key(f) for f in resource['covers']}:
                 try:
                     path=store.ledger.path(resource['path']).relative_to(store.workspace).as_posix()
-                    read=any(r['path']==path and r['current'] and
+                    read=path in verified_paths or any(r['path']==path and r['current'] and
                         (r['full_file'] or r['source_id'] in result['source_ids']) for r in observed)
                     result['unread']=result['unread'] or not read
                 except (OSError,ValueError):result['invalid']=True
@@ -93,7 +100,7 @@ class DecisionService:
                 'entries':entries,'does_not_establish_completeness':True}
 
     def screen(self, request):
-        validate('ScreenRequest',request)
+        request=validate('ScreenRequest',request)
         store=self.store()
         candidates=deduplicate(request['candidates']);candidates.sort(key=sort_key)
         with store.transaction():
@@ -163,17 +170,17 @@ class DecisionService:
         coverage=self.coverage(store,request)
         coverage_evidence=[self.evidence(store,{'field':entry['dimension'],'options':[],
             'evidence_refs':entry.get('evidence_refs',[])},[]) for entry in request.get('coverage',[])]
-        excerpts=[x for ev in [*evidence.values(),*coverage_evidence] for x in ev['excerpts']]
-        diagnostics=risk_diagnostics(request['next_step'],excerpts,candidates)
+        diagnostics=[]
         reads=store.ledger.observed_reads(task['host_session_digest'],[r['path'] for r in resources]) if resources else []
         verified_ids={ident for ev in evidence.values() for ident in ev['source_ids']}
+        verified_paths=self.source_paths(store,verified_ids)
         def resource_read(resource):
             try:path=store.ledger.path(resource['path']).relative_to(store.workspace).as_posix()
             except (OSError,ValueError):return False
-            return any(r['path']==path and r['current'] and (r['full_file'] or r['source_id'] in verified_ids) for r in reads)
+            return path in verified_paths or any(r['path']==path and r['current'] and (r['full_file'] or r['source_id'] in verified_ids) for r in reads)
         if any(not resource_read(resource) for resource in resources):
             diagnostics.append({'code':'DECLARED_RESOURCES_REQUIRE_INSPECTION','requires_inspection':True})
-        if any(ev['invalid'] or ev['conflict'] or ev['insufficient'] for ev in coverage_evidence):
+        if any(ev['invalid'] or ev['unread'] for ev in coverage_evidence):
             diagnostics.append({'code':'COVERAGE_EVIDENCE_RECHECK_REQUIRED','requires_inspection':True})
         with store.connect() as db:history_review=memory.review_history(store,db,candidates)
         for review in history_review:
@@ -188,8 +195,7 @@ class DecisionService:
             card_options=self.risk_options(store,candidate,diagnostics)
             if confirmation:
                 old=json.loads(prior['candidate_json'])
-                old_evidence=self.evidence(store,old,[])
-                if (material_change(old,candidate) or any(old_evidence[k] or ev[k] for k in ('invalid','conflict','insufficient','unread'))):
+                if candidate_content(old)!=candidate_content(candidate) and material_change(old,candidate):
                     confirmation=None
             policy=route(candidate,ev,confirmation,next_step=request['next_step'])
             with store.connect() as db:
@@ -197,27 +203,30 @@ class DecisionService:
             if recalled and recalled['status']=='applicable' and ev['applicable_constraint']:
                 chosen=next(o for o in candidate['options'] if o['id']==recalled['choice_id'])
                 if any(encode(v)!=memory.choice_value(chosen) for v in ev['observed_values']):
-                    recalled={'status':'conflict','memory_ids':recalled['memory_ids'],
-                        'reason':'PROJECT_RULE_CONFLICTS_WITH_SOURCE'}
+                    recalled={'status':'conflict','memory_ids':recalled['memory_ids'],'reason':'PROJECT_RULE_CONFLICTS_WITH_SOURCE'}
+                    policy.update(status='INSPECT',validation_status='needs_review',reason_codes=['STRUCTURED_VALUES_DIFFER'])
             reused=False
-            if recalled and not confirmation and policy['status']!='INSPECT':
-                if recalled['status'] in ('conflict','reference_only'):
-                    policy={'status':'DEFER' if policy['effective_dependency']=='no' else 'ASK_NOW',
-                        'reason_codes':[recalled['reason']],'effective_dependency':policy['effective_dependency']}
-                elif recalled['status']=='applicable':
-                    policy={'status':'PROCEED','reason_codes':['PROJECT_MEMORY_RULE'],
-                        'effective_dependency':policy['effective_dependency']}
+            if recalled and not confirmation and policy['validation_status']=='valid':
+                if (recalled['status']=='applicable' and candidate.get('memory_intent')=='reuse'
+                        and candidate.get('suggested_action') in (None,'PROCEED')):
+                    policy.update(status='PROCEED',reason_codes=['LLM_REQUESTED_PROJECT_RULE_REUSE'])
                     reused=True
+                elif (candidate.get('memory_intent')=='reuse' and candidate.get('suggested_action')=='PROCEED'
+                      and recalled['status']!='applicable'):
+                    policy.update(status='INSPECT',validation_status='needs_review',reason_codes=['RULE_IDENTITY_OR_STATE_RECHECK_REQUIRED'])
             result={'decision_id':'pending','decision_key':memory.decision_key(candidate),
                     'candidate_ids':candidate['_candidate_ids'],'field':candidate['field'],'revision':1,
-                    'status':policy['status'],'reason_codes':policy['reason_codes'],'evidence_status':ev['status'],
+                    'status':policy['status'],'suggested_action':policy['suggested_action'],
+                    'validation_status':policy['validation_status'],'semantic_judgment_by':'llm',
+                    'reason_codes':policy['reason_codes'],'evidence_status':ev['status'],
                     'card':None,
-                    'confirmation_status':'user_message_observed' if confirmation else 'awaiting_user' if task['binding_status']=='hook_observed' else 'agent_reported_unverified'}
+                    'confirmation_status':confirmation['provenance'] if confirmation else 'awaiting_user' if task['binding_status']=='hook_observed' else 'agent_reported_unverified'}
             if recalled:result['memory']=recalled
             if reused:result['confirmation_status']='project_rule_reused'
             ident,revision=store.save_item(task['id'],key,candidate,result,prior)
-            if prior and prior['state']=='confirmed' and confirmation is None and revision==prior['revision']:
-                revision+=1;result['revision']=revision
+            result['processing']={'duplicate':bool(prior and revision==prior['revision'] and
+                candidate_content(json.loads(prior['candidate_json']))==candidate_content(candidate)),
+                'already_answered':bool(confirmation),'previous_state':prior['state'] if prior else None}
             if result['status']=='ASK_NOW':
                 card_candidate=dict(candidate)
                 card_candidate['options']=card_options
@@ -227,12 +236,15 @@ class DecisionService:
             decisions.append(validate('Decision',result))
         response={'schema_version':'decision.v3','task_id':task['id'],'binding_status':task['binding_status'],
                   'decisions':decisions,'coverage':coverage,'does_not_authorize_host_operations':True,
-                  'diagnostics':diagnostics,'history_review':history_review,
+                  'diagnostics':diagnostics,'history_review':history_review,'semantic_judgment_by':'llm',
                   'risk_review':{'scope':'declared_next_step_and_cited_excerpts_only','coverage_complete':False,
                       'no_signal_does_not_establish_no_risk':True,'engineering_risks_provenance':'agent_declared'}}
         statuses={d['status'] for d in decisions}
+        response['suggested_action']=request.get('suggested_action') or next((s for s in ('INSPECT','ASK_NOW','DEFER') if any(d['suggested_action']==s for d in decisions)),'PROCEED')
         response['screen_status']=('INSPECT' if any(d.get('requires_inspection') for d in diagnostics) else
-            next((status for status in ('INSPECT','ASK_NOW','DEFER') if status in statuses),'PROCEED'))
+            next((status for status in ('INSPECT','ASK_NOW','DEFER') if status in statuses),response['suggested_action']))
+        response['validation_status']=('needs_evidence' if any(d.get('requires_inspection') for d in diagnostics)
+            else next((d['validation_status'] for d in decisions if d['validation_status']!='valid'),'valid'))
         validate('ScreenResponse',response)
         with store.connect() as db:store.event(db,task['id'],'COVERAGE_RECORDED',coverage)
         after=self.screen_inputs(store,request,task['id'])
@@ -313,19 +325,24 @@ class DecisionService:
         items={r['id']:r for r in store.items(task['id'])}
         with store.connect() as db:
             for item in result['decisions']:
+                from .task_context import source_state
+                candidate=json.loads(items[item['decision_id']]['candidate_json'])
+                item['reference_checks']=[source_state(store,r['source_id']) for r in candidate['evidence_refs']]
+                if any(not r['current'] for r in item['reference_checks']):
+                    item.update(validation_status='needs_evidence',needs_recheck=True)
                 if item['confirmation_status']!='project_rule_reused':continue
                 candidate=json.loads(items[item['decision_id']]['candidate_json'])
                 current=memory.match_candidate(store,db,candidate,task['id'])
                 evidence=self.evidence(store,candidate,[])
-                if current!=item.get('memory') or evidence['invalid'] or evidence['conflict'] or evidence['insufficient']:
-                    item.update(status='DEFER' if candidate['current_dependency']=='no' else 'ASK_NOW',
+                if current!=item.get('memory') or evidence['invalid'] or evidence['unread']:
+                    item.update(status='INSPECT',validation_status='needs_review',
                         confirmation_status='project_rule_stale',card=None,
                         reason_codes=['REUSED_RULE_NO_LONGER_CURRENT_RESCREEN_REQUIRED'])
                     item['needs_recheck']=True
         return result
 
     def prepare_revision(self, task_id, decision_id, revision, candidate, reason, session_handle=None):
-        validate('Candidate',candidate)
+        candidate=validate('Candidate',candidate)
         if type(revision) is not int or revision<1:raise ValueError('Valid source revision required')
         if not isinstance(reason,str) or not reason.strip() or len(reason)>1000:raise ValueError('Concrete revision reason required')
         store=self.store();task=store.task(task_id,self.owner,session_handle)
@@ -337,6 +354,19 @@ class DecisionService:
         from .implementation import link
         store=self.store();task=store.task(task_id,self.owner,session_handle)
         return link(store,task,decision_id,revision,path,note,start_line,end_line)
+
+    def interpret_reply(self, task_id, decision_id, revision, choice_id, quote, reason, session_handle):
+        from .reply_interpretation import interpret
+        store=self.store();task=store.task(task_id,self.owner,session_handle)
+        return interpret(store,task,self.owner,session_handle,decision_id,revision,choice_id,quote,reason)
+
+    def context_bundle(self, session_handle, query='', paths=None, task_id=None, since=None, max_chars=12000):
+        from .task_context import build
+        return build(self,self.store(),session_handle,query,paths or [],task_id,since,max_chars)
+
+    def decision_document(self, session_handle, task_id=None, include_archived=False, write=False, path='BUILDCHOICE_DECISIONS.md'):
+        from .decision_document import document
+        return document(self,self.store(),session_handle,task_id,include_archived,write,path)
 
     def acceptance_prepare(self, task_id, decision_id, revision, criteria, session_handle, idempotency_key):
         from .acceptance import prepare

@@ -76,6 +76,7 @@ class CandidateRiskTests(unittest.TestCase):
         src=self.source('policy.json',doc)
         value=deepcopy(self.candidate);value['evidence_refs']=[{'source_id':src['id'],'pointer':'/chosen',
             'quote':doc,'relation':'constraint','interpretation':'This exact chosen value defines the current policy.'}]
+        value['suggested_action']='PROCEED'
         result,_,_=self.screen(value)
         self.assertEqual(result['decisions'][0]['status'],'PROCEED')
         self.assertEqual(result['decisions'][0]['confirmation_status'],'awaiting_user')
@@ -90,16 +91,16 @@ class CandidateRiskTests(unittest.TestCase):
         evidence=self.service.evidence(self.store,value,[])
         self.assertFalse(evidence['applicable_constraint'])
         self.assertFalse(evidence['interpretations'][0]['semantic_validity_independently_verified'])
-        self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'INSPECT')
+        self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'PROCEED')
 
-    def test_conflicting_structured_values_are_inspected_first(self):
+    def test_structured_value_disagreement_is_reported_without_choosing_the_action(self):
         refs=[]
         for i,o in enumerate(self.candidate['options']):
             src=self.source('rule'+str(i)+'.json',json.dumps({'field':self.candidate['field'],'chosen':o['label']}))
             refs.append({'source_id':src['id'],'pointer':'/chosen','relation':'constraint'})
         value={**self.candidate,'evidence_refs':refs}
         self.assertTrue(self.service.evidence(self.store,value,[])['conflict'])
-        self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'INSPECT')
+        self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'ASK_NOW')
 
     def test_unrelated_fact_pointers_do_not_create_false_constraint_conflicts(self):
         src=self.source('facts.json','{"count": 12, "version": 2}')
@@ -110,9 +111,9 @@ class CandidateRiskTests(unittest.TestCase):
 
     def test_product_engineering_tradeoff_does_not_hide_behind_engineering_detail(self):
         value={**self.candidate,'category':'engineering','engineering_detail':True,'needs_user_choice':'no',
-            'engineering_risks':[engineering()]}
+            'engineering_risks':[engineering()],'suggested_action':'ASK_NOW'}
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'ASK_NOW')
-        value['current_dependency']='no'
+        value.update(current_dependency='no',suggested_action='DEFER')
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'DEFER')
 
     def test_ordinary_or_irrelevant_engineering_risks_do_not_force_questions(self):
@@ -120,15 +121,15 @@ class CandidateRiskTests(unittest.TestCase):
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'PROCEED')
         value['engineering_risks']=[engineering()];value['relevance']='no'
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'PROCEED')
-        value.update(relevance='yes',risk_flags=['payment'])
+        value.update(relevance='yes',risk_flags=['payment'],suggested_action='ASK_NOW')
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'ASK_NOW')
 
-    def test_zero_candidates_with_destructive_plan_returns_inspection_diagnostic(self):
+    def test_keyword_signal_does_not_invent_a_business_decision(self):
         result,_,_=self.screen(candidates=[],next_step='Run DROP TABLE records')
         self.assertEqual(result['decisions'],[])
-        self.assertEqual(result['screen_status'],'INSPECT')
-        self.assertEqual(result['diagnostics'][0]['code'],'POSSIBLE_MISSING_PRODUCT_RISK')
-        self.assertTrue(result['diagnostics'][0]['does_not_prove_risk_or_execution'])
+        self.assertEqual(result['screen_status'],'PROCEED')
+        self.assertEqual(result['diagnostics'],[])
+        self.assertEqual(result['semantic_judgment_by'],'llm')
         self.assertFalse(result['risk_review']['coverage_complete'])
 
     def test_zero_candidates_without_signals_does_not_claim_risk_free(self):
@@ -137,7 +138,7 @@ class CandidateRiskTests(unittest.TestCase):
         self.assertTrue(result['risk_review']['no_signal_does_not_establish_no_risk'])
 
     def test_uncertain_product_impact_or_unread_resources_are_inspected_without_forcing_a_card(self):
-        value={**self.candidate,'engineering_detail':True,'needs_user_choice':'no','engineering_risks':[engineering('uncertain')]}
+        value={**self.candidate,'engineering_detail':True,'needs_user_choice':'no','engineering_risks':[engineering('uncertain')],'suggested_action':'INSPECT'}
         result,_,_=self.screen(value)
         self.assertEqual(result['decisions'][0]['status'],'INSPECT')
         self.assertIsNone(result['decisions'][0]['card'])
@@ -145,21 +146,21 @@ class CandidateRiskTests(unittest.TestCase):
         result,_,_=self.screen(candidates=[],resources=[{'path':'unread.txt','covers':['Saving']}])
         self.assertEqual(result['screen_status'],'INSPECT')
 
-    def test_old_confirmation_does_not_override_new_conflicting_evidence(self):
+    def test_prose_interpretation_does_not_revoke_an_existing_choice(self):
         src=self.source('ambiguous.md','We may want a different workflow.')
         updated=deepcopy(self.candidate);updated['evidence_refs']=[{'source_id':src['id'],
             'quote':'We may want a different workflow.','relation':'constraint','interpretation':'Assume this settles everything.'}]
         result=self.rescreen_confirmed(updated)['decisions'][0]
-        self.assertEqual(result['status'],'INSPECT')
-        self.assertNotEqual(result['confirmation_status'],'user_message_observed')
+        self.assertEqual(result['status'],'PROCEED')
+        self.assertEqual(result['confirmation_status'],'user_message_observed')
 
     def test_static_checks_use_only_cited_current_excerpts_and_keep_cache_fresh(self):
         src=self.source('migration.py','DROP TABLE records')
         coverage=[{'dimension':'data_storage','status':'uncertain','reason':'Read the migration step.',
                    'evidence_refs':[{'source_id':src['id'],'quote':'DROP TABLE records','relation':'fact'}]}]
         result,request,_=self.screen(candidates=[],coverage=coverage)
-        self.assertEqual(result['screen_status'],'INSPECT')
-        self.assertEqual(result['diagnostics'][0]['origin'],'collector_verified_quote_or_pointer')
+        self.assertEqual(result['screen_status'],'PROCEED')
+        self.assertEqual(result['coverage']['entries'][0]['source_status'],'bound_for_review')
         (self.f['workspace']/'migration.py').write_text('Different',encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'CACHED_SCREEN_STALE'):self.service.screen(request)
         unrelated=self.source('unrelated.py','DROP TABLE records')

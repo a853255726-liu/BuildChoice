@@ -11,11 +11,15 @@ UserPromptSubmit → 工作区检查 → Prompt 澄清原则
                          ↓
         主 Agent 根据当前消息与上下文判断是否实施开发
                          ↓
-         一次提取：候选 + 简短 coverage 依据
+         一次取得任务状态、项目记忆与有效资料
                          ↓
-         真实来源核验 → 确定性四状态 → 对话单卡
+         LLM 提取候选 + 处理建议 + coverage
                          ↓
-       Hook 观察明确选项回复 → V3 Ledger 与版本历史
+         程序核对格式、来源与版本 → 对话单卡
+                         ↓
+       真实消息直接解析 / LLM 解释 → 记录来源与版本
+                         ↓
+           断点恢复、项目复用、文档与变化摘要
 ```
 
 Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配失败不阻止生成句柄。句柄本身不要求发卡或调用工具；普通解释与咨询直接回答。已有待答卡的回复优先关联到原任务。
@@ -27,10 +31,13 @@ Skill 为 Agent 提供工作指引，MCP 暴露有状态工具，Hook 关联宿�
 - `decision_memory.py`：从真实 Hook 确认派生项目参考；管理动作作为 MEMORY_ACTION_OBSERVED 事件保存，跨聊天检索不扩大原任务访问权限。普通参考 30 天后归档，长期规则需要明确的用户管理请求；记忆不生成新确认或操作许可。
 - `settings.py`：Prompt-first / off；`decision_settings.py`：独立 V3 试用设置。
 - `prompt_policy.py` / `decision_hook.py`：澄清原则、工作区范围与真实消息回调。
-- `candidate_policy.py`：候选去重、证据/风险/依赖规则及排序。
+- `candidate_policy.py`：结构化去重、引用核验结果与 LLM 声明的处理建议、优先级；不进行风险语义分类。
 - `decision_service.py`：来源核验、候选编排及覆盖记录。
 - `decision_store.py`：SQLite 事务、短期句柄、单卡、版本、确认与历史。
 - `decision_cards.py`：固定文本模板。
+- `task_context.py`：同聊天上下文打包、有效读取复用、预算与字面变化快照；最多保留 100 份摘要快照。
+- `reply_interpretation.py`：将 LLM 对自然回复的解释绑定到实际消息与冻结卡片，单独记录 provenance。
+- `decision_document.py`：账本的可读 Markdown 投影与字面修订差异，保护手写文档。
 - `implementation.py`：真实文件位置与哈希、Agent 登记的实现关联及变化提示。
 - `acceptance.py`：当前确认绑定、不可变验收条件及独立版本。
 - `verification_inputs.py` / `verification.py`：声明输入/环境指纹、执行回执核对、逐项结论和动态失效；MCP 不执行项目命令。
@@ -51,7 +58,11 @@ Skill 为 Agent 提供工作指引，MCP 暴露有状态工具，Hook 关联宿�
 
 audit.v1 包含 sessions、sources、decisions、reviews、events；V3 使用独立的任务、候选、确认、上下文、激活卡、幂等操作和事件表。覆盖依据作为事件保存。
 
-工具实际读取文件，保存内容与 SHA256。JSON pointer 核对结构化字面值；精确文本引用检查原文是否存在，解释仍需复核。文件变化会使旧复核指纹失效。确认来自当前会话有效卡片的明确回复，Agent 转述不升级为可信确认。
+显式读取器保存文件内容与 SHA256，观察读取只保存范围及哈希。JSON pointer 核对结构化字面值；精确引用检查原文是否存在，语义和适用性由 LLM 判断。文件变化使旧来源和缓存失效，不撤销用户原选择。
+
+可直接解析的真实卡片回复记录 user_message_observed。复杂回复由 LLM 提交实际本轮原话与解释，程序核对当前消息、卡片、选项、版本和有效期，记录 llm_interpreted_user_reply、semantic_verified_by_program=false。无真实消息的 Agent 自述不能创建确认。仅待解释的当前回复在内部保存必要原文，不保存完整聊天。
+
+上下文查询聚合任务、记忆、来源和恢复建议，部分/过期读取不提升为完整有效来源。快照按工作区和宿主聊天隔离，保存哈希与状态，不复制文件正文；快照字面变化不判定业务影响。重复激活当前卡不续期、重复回复解释不新增确认，暂缓项不自动重新询问。
 
 ## 实现关联
 
@@ -71,10 +82,11 @@ Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用
 
 | 标识 | 用途 |
 |---|---|
-| 0.10.1 | 产品发布版本，写入插件元数据和分发包名称 |
+| 0.11.0 | 产品发布版本，写入插件元数据和分发包名称 |
 | V3 / decision.v3 | 决策卡流程及其数据契约，与产品版本分别演进 |
 | audit.v1 | 文件来源、引用与兼容审计记录格式 |
 | memory.v1 | 项目决策记忆的查询结果格式 |
-| candidate-extractor-v3.7 | Agent 候选提取指引版本 |
+| context.v1 / decision-document.v1 | 上下文与可读决策文档结果格式 |
+| candidate-extractor-v3.8 | Agent 候选提取指引版本 |
 
 .claude-plugin/marketplace.json 是当前安装器使用的本地市场兼容布局；plugins/buildchoice/.codex-plugin/plugin.json 是 Codex 插件清单。安装器在独立数据目录生成插件副本和市场文件；源码内的文件用作模板。install_local.py 通过 openai_codex SDK 调用 Codex app-server 的 plugin/install 和 plugin/read；目录名称不代表运行了 Claude 服务。

@@ -16,7 +16,7 @@ from test_guidance import candidate as base_candidate
 
 
 def candidate():
-    value=base_candidate();value['decision_key']='profile.visibility'
+    value=base_candidate();value['decision_key']='profile.visibility';value['suggested_action']='ASK_NOW'
     for option in value['options']:
         option['option_key']='profile.private' if option['id']=='A' else 'profile.public'
     return value
@@ -70,8 +70,12 @@ try:
     init=send('initialize',{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'BuildChoice smoke','version':'1'}})
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
-    names={t['name'] for t in send('tools/list',{})['tools']}
-    assert len(names)==16,names
+    listed={t['name']:t for t in send('tools/list',{})['tools']};names=set(listed)
+    assert len(names)==19,names
+    from jsonschema import Draft202012Validator
+    schema=listed['buildchoice_screen_candidates']['inputSchema'];Draft202012Validator.check_schema(schema)
+    assert 'suggested_action' in schema['$defs']['Candidate']['required']
+    assert schema['$defs']['Candidate']['properties']['suggested_action']['enum']==['ASK_NOW','INSPECT','DEFER','PROCEED']
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
     assert native['values']['mode']=='Prompt 优先'
@@ -88,6 +92,10 @@ try:
 
     event={'hook_event_name':'UserPromptSubmit','cwd':str(workspace),'session_id':'mcp-smoke','turn_id':'1','prompt':'给现有项目加登录\r\n'}
     handle=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook(event))[0]
+    context=call('buildchoice_context',{'session_handle':handle,'paths':['requirements.txt'],'max_chars':3000})
+    reused=call('buildchoice_context',{'session_handle':handle,'paths':['requirements.txt'],'since':context['snapshot_id']})
+    assert reused['sources'][0]['source_id']==context['sources'][0]['source_id']
+    assert reused['sources'][0]['reused'] and reused['changes']==[]
     response=call('buildchoice_screen_candidates',{'request':{'task_text':event['prompt'].strip('\r\n'),'phase':'before_implementation',
         'next_step':'Implement access rules','candidates':[candidate()],'session_handle':handle,'idempotency_key':'screen',
         'coverage':[{'dimension':'access_visibility','status':'candidate','reason':'Access rule needs a choice.','candidate_ids':['visibility']}]}})
@@ -200,6 +208,40 @@ try:
     rejected=send('tools/call',{'name':'buildchoice_verify_decision','arguments':verify_args})
     assert rejected.get('isError'),rejected
 
+    # Actual MCP context/resume, LLM-interpreted reply and protected generated document.
+    natural=memory_hook('开发用户页面的访问范围','1','natural-smoke')
+    natural_request={'task_text':'开发用户页面的访问范围','phase':'before_implementation',
+        'next_step':'Implement visibility','candidates':[candidate()],'session_handle':natural,'idempotency_key':'natural-screen'}
+    natural_response=call('buildchoice_screen_candidates',{'request':natural_request})
+    natural_item=natural_response['decisions'][0]
+    natural_args={'task_id':natural_response['task_id'],'decision_id':natural_item['decision_id'],'revision':1,'session_handle':natural}
+    shown=call('buildchoice_card_activate',{**natural_args,'idempotency_key':'natural-activate'})
+    same=call('buildchoice_card_activate',{**natural_args,'idempotency_key':'natural-activate-new-key'})
+    assert same['already_active'] and same['card']==shown['card']
+    resumed=call('buildchoice_context',{'session_handle':natural})
+    assert resumed['decisions'][0]['resume_action']=='continue_current_card'
+    natural=memory_hook('采用私密方案，请继续完成页面。','2','natural-smoke');natural_args['session_handle']=natural
+    interpreted=call('buildchoice_reply_interpret',{**natural_args,'choice_id':'A','quote':'采用私密方案',
+        'reason':'The private option is the first offered option'})
+    assert interpreted['confirmation']['provenance']=='llm_interpreted_user_reply'
+    assert interpreted['semantic_verified_by_program'] is False
+    assert call('buildchoice_reply_interpret',{**natural_args,'choice_id':'A','quote':'采用私密方案',
+        'reason':'Same reading of the actual message'})['replayed']
+    resumed=call('buildchoice_context',{'session_handle':natural,'since':resumed['snapshot_id']})
+    assert resumed['decisions'][0]['state']=='confirmed' and 'pending_reply' not in resumed
+    assert any(c['kind']=='decisions' for c in resumed['changes'])
+    document=call('buildchoice_decision_document',{'session_handle':natural,'write':True})
+    assert document['written'] and (workspace/document['path']).is_file()
+    assert '选项对应由 LLM 解释' in document['markdown']
+    assert any(r['confirmation'] and r['confirmation']['provenance']=='llm_interpreted_user_reply' for r in document['decisions'])
+    (workspace/'USER_DECISIONS.md').write_text('My own notes',encoding='utf-8')
+    assert send('tools/call',{'name':'buildchoice_decision_document','arguments':{
+        'session_handle':natural,'write':True,'path':'USER_DECISIONS.md'}}).get('isError')
+    assert (workspace/'USER_DECISIONS.md').read_text(encoding='utf-8')=='My own notes'
+    new_tool_args={'buildchoice_context':{'session_handle':natural},
+        'buildchoice_decision_document':{'session_handle':natural},
+        'buildchoice_reply_interpret':{**natural_args,'choice_id':'A','quote':'采用私密方案','reason':'Existing reply'}}
+
     call('buildchoice_settings_update',{'set':{'mode':'完全关闭'}})
     names={t['name'] for t in send('tools/list',{})['tools']}
     assert names=={'buildchoice_settings_read','buildchoice_settings_update','buildchoice_settings_status','buildchoice_decision_status'},names
@@ -207,16 +249,20 @@ try:
     blocked=send('tools/call',{'name':'buildchoice_audit_start','arguments':{'title':'Blocked','task':'No write'}})
     assert blocked.get('isError'),blocked
     assert send('tools/call',{'name':'buildchoice_memory','arguments':{'session_handle':fresh}}).get('isError')
+    for tool,args in new_tool_args.items():
+        assert send('tools/call',{'name':tool,'arguments':args}).get('isError')
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':[],'idempotency_key':'off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
     call('buildchoice_settings_update',{'set':{'mode':'Prompt 优先','decision_guidance':'关闭'}})
     assert len(send('tools/list',{})['tools'])==8
+    for tool,args in new_tool_args.items():
+        assert send('tools/call',{'name':tool,'arguments':args}).get('isError')
     assert send('tools/call',{'name':'buildchoice_memory','arguments':{'session_handle':fresh}}).get('isError')
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':conditions['criteria'],'idempotency_key':'pilot-off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
-    print('PASS actual MCP initialize, 16 tools, settings, audit, synthetic Hook confirmation, natural memory management, acceptance, explicit CLI execution, verification, stale results and off/pilot-off behavior')
+    print('PASS actual MCP: advertised contracts, 19 tools, reusable context, resume, direct/LLM-bound replies, protected decision document, memory, explicit verification and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)
