@@ -1,0 +1,24 @@
+# BuildChoice · Codex 插件
+
+BuildChoice 帮助 AI 编程用户掌握影响产品行为的重要实现选择。它结合需求与项目文件识别候选决策，在需要时解释可选方案与取舍；用户确定后，保存选择、关联相关代码，并在同一项目的后续聊天中复用。
+
+## 功能
+
+- **主动决策引导**：Agent + Skill 识别关键选择，MCP 根据证据与当前开发阶段确定是否需要询问，避免因普通技术细节打断用户。
+- **对话决策卡**：在原 Codex 对话中展示选项、影响和建议，Hook 关联真实回复，保留修订历史。
+- **项目决策记忆**：已确认选择形成项目参考；支持长期规则、普通参考 30 天归档、遗忘与恢复，遇到范围变化或冲突时重新确认。遗忘停止主动召回，历史仍保留。
+- **可选代码关联**：按需记录已确认决定关联的代码位置和文件哈希；测试与验收由 Codex 执行。
+
+## 安装
+
+从插件目录执行，`--workspace` 指向已有项目目录：
+
+```bash
+python setup.py --workspace /absolute/path/to/project --runtime-root /absolute/path/to/BuildChoice --decision-mode pilot --install
+```
+
+安装会在独立数据目录生成配置，源码保持不变。可用 setup.py --list-projects 查看项目，--use-project 路径切换活动绑定；切换后重连 MCP。项目目录可自动匹配已登记的绑定。
+
+默认采用 Prompt-first，决策卡独立开启。安装器会配置本地依赖，Hook 信任由 Codex 正常审批。决策历史保存在项目的 `.buildchoice_audit` 目录，不自动上传。
+
+更多用法参见 [README](https://github.com/a853255726-liu/BuildChoice#readme)、[决策卡使用指南](https://github.com/a853255726-liu/BuildChoice/blob/main/docs/DECISION_GUIDANCE.md) 和 [决策记忆指南](https://github.com/a853255726-liu/BuildChoice/blob/main/docs/DECISION_MEMORY.md)。

@@ -1,0 +1,20 @@
+{
+  "name": "buildchoice-local",
+  "interface": {
+    "displayName": "BuildChoice"
+  },
+  "plugins": [
+    {
+      "name": "buildchoice",
+      "source": {
+        "source": "local",
+        "path": "./plugins/buildchoice"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

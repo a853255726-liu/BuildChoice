@@ -1,0 +1,45 @@
+# Environments and local configuration
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.codex/
+.aws/
+.ssh/
+binding.json
+*.token
+*.key
+*.pem
+
+# Runtime state and generated artifacts
+.buildchoice_audit/
+.gate_audit/
+runs/
+models/
+artifacts/
+dist/
+*.sqlite
+*.sqlite3
+*.db
+*.safetensors
+*.bin
+*.gguf
+__pycache__/
+*.py[cod]
+.cache/
+
+# Research, validation and presentation materials
+tests/
+!examples/receipt_review/tests/
+!examples/receipt_review/tests/test_receipt.py
+evaluation/
+reports/
+datasets/
+benchmarks/
+data_authoring/
+product_v2/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log

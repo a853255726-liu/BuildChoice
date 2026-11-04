@@ -1,0 +1,92 @@
+# BuildChoice · MCP 接口
+
+候选字段中，Option 可带 risk_level / risk_warning / risk_basis / risk_reason / risk_condition / risk_evidence_refs，以及实际行为 behavior / conditions；Candidate 可带 engineering_risks、history_matches、scope_key、conditions、material_change。EvidenceRef 可同时附 quote、pointer 与 interpretation，解释不构成确认。ScreenResponse 包含 screen_status、diagnostics、risk_review、history_review，零候选也须检查诊断。详见[字段语义与示例](CANDIDATE_RISKS.md)。
+
+本文面向插件集成与开发者。日常使用可直接在 Codex 对话中提出需求，见[决策卡指南](DECISION_GUIDANCE.md)。BuildChoice 通过 MCP 提供决策引导、项目记忆、实现关联、行为验证及文件证据接口。
+
+## 连接与可用工具
+
+安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 16 个工具：
+
+| 分组 | 工具 |
+|---|---|
+| 设置 | buildchoice_settings_read、buildchoice_settings_update、buildchoice_settings_status |
+| 文件证据与审计 | buildchoice_audit_start、buildchoice_audit_read、buildchoice_audit_decision、buildchoice_audit_report |
+| 决策 | buildchoice_screen_candidates、buildchoice_card_activate、buildchoice_decision_status、buildchoice_decision_prepare_revision |
+| 实现与验证 | buildchoice_link_implementation、buildchoice_acceptance_prepare、buildchoice_verify_decision |
+| 项目记忆 | buildchoice_memory、buildchoice_memory_manage |
+
+决策卡关闭时隐藏决策写入、实现关联、验收/验证和记忆工具，保留 8 个工具；完全关闭时仅保留设置与决策状态，共 4 个。工具列表变更会发送通知，调用时仍执行开关校验。
+
+会话句柄来自实际 UserPromptSubmit Hook。创建或访问可信任务时须传入当前有效句柄；自行填写 session_id 或复述“用户已同意”不能建立可信确认。工具调用不授予文件、网络或命令执行许可。
+
+## 读取文件证据
+
+优先读取 PostToolUse 上下文或 buildchoice_decision_status.observed_reads 中的 source_id、路径、范围、文件哈希和 current。该来源 origin=hook_file_read，正文不保存；服务端从仍匹配哈希的文件重建已返回范围。部分读取只允许范围内 quote，整文件记录才能使用 JSON pointer。不支持或没有有效记录时，显式创建来源收集会话：
+
+~~~json
+{"title":"小票保存规则","task":"核对已确认保存流程的相关资料"}
+~~~
+
+调用 buildchoice_audit_start，取得返回的会话 id，再调用 buildchoice_audit_read：
+
+~~~json
+{"session":"audit-...","path":"examples/receipt_review/receipt.json"}
+~~~
+
+该路径是仓库内示例；实际集成应换成绑定项目内的文件。读取器返回 id、content、locator、digest 和读取时间。引用使用返回的 source_id，以及 JSON pointer 或精确 quote：
+
+~~~json
+{"source_id":"src-...","pointer":"/amount"}
+~~~
+
+来源收集会话的 task 是调用方说明，不是用户授权。文件读取与引用绑定可以证明内容、路径和哈希，不证明业务解释正确。
+
+INSPECT 优先复用当前聊天的有效读取记录；单纯声明“已读”无效，新读取或文件变化会触发相关筛选缓存失效。支持工具、隐私保存与边界见[读取观察](PROJECT_READS.md)。
+
+## 审计记录
+
+使用 buildchoice_audit_decision(session, title, value, refs, impact?, rationale?) 登记引用，用 buildchoice_audit_report(session) 获取 report 与 markdown。引用在 pointer 与 quote 中选择一项，必须来自当前来源收集会话。
+
+这些记录与 V3 的用户确认分别保存，不生成可信用户选择。报告中的 linked 表示字面值匹配，attention 表示缺失、变化或待核对，reviewed 表示已有复核意见；均不等于行为测试通过。
+
+## 项目决策记忆
+
+buildchoice_memory(query="", include_archived=false, session_handle) 需要当前有效 Hook 句柄，返回 memory.v1、最多 30 条参考/规则、确认来源、生命周期、冲突、total_matches、truncated、编号管理命令和本轮 management_request（没有真实管理指令时为 null）。查询不续期，也不创建确认。
+
+buildchoice_memory_manage(memory_id, revision, session_handle, action="promote") 支持 promote / unpin / forget / restore；仅本轮 Hook 登记的唯一目标、动作和当前版本可以修改。真实自然语言已明确授权时无需二次确认；目标或意图不清返回 memory_status=clarification_required 与原因，不写管理事件。有效请求返回 applied、原范围与 replayed；重复请求不追加事件。带编号的完整命令由 Hook 直接处理。见[决策记忆](DECISION_MEMORY.md)。
+
+Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的用户确认，不能直接用来创建仅接受本任务确认的验收集合。状态查询会重新核对复用规则的有效性。
+
+候选的 memory_intent 为 reuse / change / uncertain，缺省 uncertain。仅核实需求未变且范围一致时使用 reuse。decision_key 是项目内稳定的决定标识，option_key 是稳定的选项标识，均为小写字母开头的 2–120 位字母、数字、点、下划线或连字符。显示字段和 A/B 排序可变，稳定键保持同一含义；显式 value 改变仍重新确认。未提供键的候选按字段、取值及选项后果匹配。匹配返回 PROJECT_MEMORY_RULE、project_rule_reused 和原确认来源。
+
+## 决策引导接口
+
+- `buildchoice_screen_candidates(request)`：校验候选、核对来源并按确定性规则给出四状态，附带 Agent 声明的覆盖依据；按 task_id + idempotency_key 防止重复登记。
+
+筛选的任务/句柄绑定、候选、事件及缓存响应在单一写事务中提交，失败整体回滚。缓存只在所引用文件、未读资源和决定/确认/覆盖快照仍匹配时重放；过期或旧格式缓存返回 `CACHED_SCREEN_STALE`，执行中输入变化返回 `SCREEN_INPUT_CHANGED_DURING_EVALUATION`。前者需读取当前来源/状态后换新键筛选，后者未提交该请求的写入。新筛选的语义指纹不包含连接句柄或重复的 task_id，但先校验当前会话归属；改变候选等语义输入仍拒绝复用同一键。
+- `buildchoice_card_activate(task_id, decision_id, revision, idempotency_key, session_handle)`：同会话最多激活一张待答卡，返回固定文本与 delivery_status=not_observed。
+- `buildchoice_decision_status(task_id?, session_handle?)`：读取开关、未决项和实际确认历史。可信任务需要当前 Hook 句柄，不能只传 Agent 自报的会话 ID。
+- `buildchoice_decision_prepare_revision(task_id, decision_id, revision, candidate, reason, session_handle)`：追加新版本，清除旧卡激活状态，新版本必须重新得到明确选择。
+
+确认来自原生 Hook，支持当前卡片的明确字母、序号、完整名称和推荐方案表达；含糊表达返回 awaiting_user 和 reply_hint。没有将 Agent 自报选择写成用户确认的接口。
+
+## 决定与实现关联
+
+`buildchoice_link_implementation(task_id, decision_id, revision, path, note, start_line?, end_line?, session_handle?)` 是可选接口，将真实 UTF-8 文件关联到当前 Hook 已确认的决定版本；未确认、Agent 自报及仅项目规则复用不能建立正式关联。path 为相对路径，note 说明关系，行号可省略，最大 256 KiB。拒绝越界、私有、链接路径、无效行号、过期版本和跨会话写入。无需每次开发调用。
+
+服务端读取实际文件并保存 SHA256；不执行 Git，不修改文件，不存整段代码快照。同一决定版本/文件/行号重复登记相同内容时不重复写事件；内容或说明变化保留新事件。每任务最多 100 个关联。
+
+返回 provenance=agent_reported_implementation、does_not_prove_correctness=true，并保存原 confirmation_id。该登记不建立用户确认，也不证明实现符合选择。`buildchoice_decision_status` 的 implementations 返回关联、当前 file_status 和 needs_recheck；决定版本变化、文件变化或不可读均提示复核。旧记录保留，关联本身不触发验证。
+
+## 可选验收与验证
+
+buildchoice_acceptance_prepare 和 buildchoice_verify_decision 是按需实验接口，仅在用户明确要求时使用。默认开发使用 Codex 原生测试，专用测试采集器由显式 CLI 启动；MCP 不自动执行项目命令。
+
+## 覆盖记录与设置
+
+`buildchoice_screen_candidates` 的 request 可带 coverage 数组（最多六项）：dimension、status、reason，可选 evidence_refs 与 candidate_ids。维度与形状见 [Schema](contracts/decision-v3.schema.json)。重复维度或未知候选 ID 会拒绝；未提交 coverage 时返回 reported=false。
+
+响应 coverage 含 provenance=agent_declared、entries、reported 和 does_not_establish_completeness=true。每项独立返回 source_status 与 source_ids。该记录写入 V3 事件，任务状态返回最新一轮；不触发额外推理或参与分流。即使 resolved 引用了真实文件，也仍需判断约束的适用性。
+
+原生设置工具为 `buildchoice_settings_read`、`buildchoice_settings_update`、`buildchoice_settings_status`。mode 支持 Prompt 优先 / 完全关闭，decision_guidance 支持关闭 / 试用。
