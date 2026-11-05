@@ -1,6 +1,6 @@
 ---
 name: decision-discovery
-description: 在 BuildChoice 决策引导开启的开发任务中识别重要产品取舍，结合真实资料和已有选择，保存可追溯的用户决定。咨询和低影响实现细节不发卡。
+description: 在 BuildChoice 开发任务中识别重要产品取舍并保存可信决定；用户要求规划或核对产品体验、解释产品行为变化时，按任务启用场景预期、行为审阅及集中决策。咨询和低影响实现细节不发卡。
 ---
 
 # 关键实现选择
@@ -14,7 +14,7 @@ description: 在 BuildChoice 决策引导开启的开发任务中识别重要产
 先判断是否涉及重要产品取舍或已有决定的变更。输入字段来源、读取路径和既定技术前提等明确事实直接沿用，不逐条建立决定；用户明确要求将其保存为决定时再记录。对用户解释产品后果和保存结果，不援引内部 Skill 或工具流程作为产品依据。
 
 - **用户已明确作出重要选择或修订已有决定**：用 `buildchoice_record_instruction`，不要先 screen、prepare_revision 或发卡。提交完整本轮 user_message（不含 Hook 上下文）、精确 quote、reason、句柄与幂等键。更新使用已有 decision_id/expected_revision 和稳定 decision_key，以一个 choice 的 label/value 完整表达行为与范围。重复确认同一决定时省略 decision/choice_id，沿用版本。不要手工改 Markdown 代替记账。
-- **仍需用户选择**：提交候选 → 检查 validation_status → 激活可用的 ASK_NOW 卡并原样展示返回的 message，一次一张。只暂停该选择影响的步骤，其余工作继续。
+- **仍需用户选择**：提交候选 → 检查 validation_status → 激活可用的 ASK_NOW 卡并原样展示返回的 message。普通任务沿用单卡；启用产品体验任务后，适合共同处理的独立问题可用集中决策（每批最多 3 项）。只暂停该选择影响的步骤，其余工作继续。
 - **回复已有卡**：Hook 已登记的直接沿用；明确对应原卡但仍待答时用 `buildchoice_reply_interpret`。过期或变更卡不能接受迟到的字母回复。新条件改走指令修订或澄清。
 - **没有重要未决选择**：正常继续，不为留记录制造候选或工具调用。已答的不重复询问；暂缓项在你判断相关依赖将到达时再评估。
 
@@ -31,6 +31,8 @@ description: 在 BuildChoice 决策引导开启的开发任务中识别重要产
 普通记忆只供参考。仅当你核对行为与范围相同，且当前长期规则有效时，明确提交 memory_intent=reuse 和 suggested_action=PROCEED；身份、来源或版本不匹配仍需补查，不让程序猜是否复用。
 
 ## 按需能力
+
+用户要求规划/确认产品体验、解释产品行为变化、核对开发结果或明确开启流程时，读 [产品预期、行为审阅与集中决策](references/product-review.md)，使用日常工具中的四个正式产品入口按任务启用；已启用任务继续接续，直到完成或用户关闭。普通开发任务不强制生成场景或快照。业务含义仍由你判断，不新增独立 Agent 或分类器。
 
 日常工具集已含上下文、候选、卡片、两种记账入口和文档补写。指令记账自动维护生成文档；有 pending 时重试原请求或 `buildchoice_decision_document(write=true)`，不直接改 SQLite。生成文件不可代替原消息授权。
 

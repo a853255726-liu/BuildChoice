@@ -1,5 +1,7 @@
 # BuildChoice · 安装与更新
 
+0.14.0 增加正式的按任务产品预期、行为审阅和集中决策功能，四个入口同时提供于日常/完整工具集。旧 SQLite 增量增加附加表，无需重建旧决定或迁移单卡调用。请一起更新运行时和 Skill，并重新连接 MCP。快照正文写入安装数据目录的 product-snapshots，需位于源码工作区外；旧版不存在代码正文快照，不会补造旧任务历史。使用方式与边界见[产品审阅](PRODUCT_REVIEW.md)。
+
 更新后重新连接 MCP。未配置 tool_profile 的项目使用日常工具集；需要独立审计或高级功能时，在原生设置切换“工具集：完整”，或执行 `python scripts/buildchoice_decisions.py full`。这不修改既有决定与确认历史。
 
 自定义 MCP 调用方应按当前工具 Schema 提交候选，明确提供 suggested_action；不再提交 needs_user_choice、current_dependency、relevance、engineering_detail 或 why_user_choice。已有 SQLite 记录保持可读，重新提交或修订时使用当前字段。插件与运行时应一并更新，避免使用旧 Skill 生成已退出的字段。

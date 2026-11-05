@@ -26,6 +26,8 @@ Hook 只输出本轮可信句柄、回复/记忆处理状态和基本 Skill 触�
 
 ## 模块边界
 
+0.14.0 产品闭环使用原有真实 Hook、决策和 SQLite 事务：product_contracts 提供公布/执行一致的 action 契约；product_store 保存附加任务、追加版本及幂等回执；experience 保存逐行为来源、展示、认可与预期冻结并发布可恢复文档；workspace_snapshot 在仓库外保存受控正文并生成实际差异；behavior_review 分离行为判断和证据强度，关联反馈与有效性；batch_decisions 冻结批次并原子写入原确认表；product_observer 仅结构化记录已启用任务的真实工具返回，不做业务分类。详见[产品预期与行为审阅](PRODUCT_REVIEW.md)。
+
 Skill 为 Agent 提供工作指引，MCP 暴露有状态工具，Hook 关联宿主观察到的用户消息。指引与工具返回内容不具备额外的操作授权。
 
 - `decision_memory.py`：从真实 Hook 确认派生项目参考；管理动作作为 MEMORY_ACTION_OBSERVED 事件保存，跨聊天检索不扩大原任务访问权限。普通参考 30 天后归档，长期规则需要明确的用户管理请求；记忆不生成新确认或操作许可。
@@ -86,7 +88,7 @@ Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用
 
 | 标识 | 用途 |
 |---|---|
-| 0.13.0 | 产品发布版本，写入插件元数据和分发包名称 |
+| 0.14.0 | 产品发布版本，写入插件元数据和分发包名称 |
 | V3 / decision.v3 | 决策卡流程及其数据契约，与产品版本分别演进 |
 | audit.v1 | 文件来源、引用与兼容审计记录格式 |
 | memory.v1 | 项目决策记忆的查询结果格式 |

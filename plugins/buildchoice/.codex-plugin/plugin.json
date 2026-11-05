@@ -1,7 +1,7 @@
 {
   "name": "buildchoice",
-  "version": "0.13.0",
-  "description": "A Codex plugin for reviewing important implementation choices before they become code.",
+  "version": "0.14.0",
+  "description": "Trusted product choices, experience expectations and evidence-limited behavior reviews in Codex.",
   "author": {
     "name": "BuildChoice"
   },
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "BuildChoice",
     "shortDescription": "在编程过程中确认重要的实现选择",
-    "longDescription": "结合项目约束整理影响产品行为的选择，在 Codex 对话中逐项确认并记录。默认使用 Prompt-first 策略，可独立开启决策卡。",
+    "longDescription": "结合项目资料确认重要选择，按任务维护可理解的产品预期，并对照开发前基线审阅行为差异。支持集中决策和跨聊天接续。",
     "developerName": "BuildChoice",
     "category": "Developer Tools",
     "capabilities": [

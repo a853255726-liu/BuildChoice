@@ -111,6 +111,7 @@ def run(kind='mcp',home=None):
         script = root/'scripts'/('buildchoice_mcp.py' if kind == 'mcp' else 'buildchoice_hook.py')
         command = [value['python'],str(script)] + (['--native-settings'] if kind == 'mcp' else [])
         env={**os.environ,'BUILDCHOICE_WORKSPACE':value['workspace'],'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
+        env['BUILDCHOICE_DATA']=str(Path(home) if home else data_home())
         if value.get('profile_home'):
             profile=Path(value['profile_home'])
             env.update(BUILDCHOICE_SETTINGS=str(profile/'configs/buildchoice.json'),

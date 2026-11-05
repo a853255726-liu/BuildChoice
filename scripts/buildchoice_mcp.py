@@ -38,12 +38,19 @@ def main():
     listed_tool_names = None
     core_tools={'buildchoice_context','buildchoice_screen_candidates','buildchoice_card_activate',
         'buildchoice_reply_interpret','buildchoice_record_instruction','buildchoice_decision_document',
-        'buildchoice_decision_status'}
+        'buildchoice_decision_status','buildchoice_experience','buildchoice_workspace_snapshot',
+        'buildchoice_behavior_review','buildchoice_batch_decisions'}
 
     async def available_tools():
         tools = await server.list_tools()
         from buildchoice.desktop.decision_contracts import input_schema
         for tool in tools:
+            product_contracts={'buildchoice_experience':'experience','buildchoice_workspace_snapshot':'snapshot',
+                'buildchoice_behavior_review':'review','buildchoice_batch_decisions':'batch'}
+            if tool.name in product_contracts:
+                from buildchoice.desktop.product_contracts import input_schema as product_schema
+                tool.inputSchema={'type':'object','properties':{'request':product_schema(product_contracts[tool.name])},
+                    'required':['request'],'additionalProperties':False}
             if tool.name in ('buildchoice_screen_candidates','buildchoice_record_instruction'):
                 contract=input_schema('ScreenRequest' if tool.name=='buildchoice_screen_candidates' else 'InstructionRequest');tool.inputSchema={'type':'object','properties':{'request':{'$ref':contract['$ref']}},'required':['request'],'additionalProperties':False,'$defs':contract['$defs']}
             elif tool.name=='buildchoice_decision_prepare_revision':
@@ -51,7 +58,8 @@ def main():
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         elif decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage','buildchoice_context','buildchoice_reply_interpret','buildchoice_record_instruction','buildchoice_decision_document')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage','buildchoice_context','buildchoice_reply_interpret','buildchoice_record_instruction','buildchoice_decision_document',
+                'buildchoice_experience','buildchoice_workspace_snapshot','buildchoice_behavior_review','buildchoice_batch_decisions')]
         if decisions.settings()['tool_profile']=='core':
             tools=[t for t in tools if t.name in core_tools or t.name.startswith('buildchoice_settings_')]
         return tools
@@ -118,6 +126,58 @@ def main():
         if advanced and decisions.settings()['tool_profile']!='full':raise ValueError('TOOL_PROFILE_REQUIRES_FULL')
 
     audit_write = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_experience(request: dict) -> dict[str,Any]:
+        """Task opt-in product scenarios: enable/save/present/acknowledge/freeze/status/document/close.
+        Read the advertised action-specific contract. Preserve each behavior's user/decision/project/
+        AI/unresolved origin. Saving/presenting is not approval. Display the full returned message;
+        acknowledge only a later actual user message for that frozen presentation in this chat.
+        freeze saves pre-development expectation versions, including their mixed review states.
+        status recovers workspace tasks across chats; fresh confirmation never inherits old handles.
+        document retries publication without duplicating versions. No long-term rule promotion.
+        """
+        require_enabled()
+        return decisions.experience(request)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_workspace_snapshot(request: dict) -> dict[str,Any]:
+        """Capture actual local workspace text BEFORE editing, compare AFTER, extend before first edit.
+        capture links a frozen expectation to explicit scopes; includes dirty/untracked/non-Git files.
+        extend timing=already_modified marks missing history; never invent a pre-edit state.
+        compare uses saved content, reports actual diffs, exclusions and attribution limits.
+        Storage is outside the code workspace, bounded and private; prune removes content only.
+        Scope/credential/link/large-file exclusions limit review conclusions. No commands are run.
+        """
+        require_enabled()
+        return decisions.workspace_snapshot(request)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_behavior_review(request: dict) -> dict[str,Any]:
+        """Create evidence-limited behavior reviews against the comparison's ORIGINAL expectation.
+        Judgment and evidence strength are separate. Specify behavior_ids actually checked; omitted
+        frozen behaviors become unknown. A test log without real Hook observation is only a report
+        file. Native tool observation IDs bind actual output/exit code, not semantic test coverage.
+        Extra behaviors distinguish observed_change/preexisting/uncertain. Keep scope and limits.
+        feedback binds current real user_message for fix/change_requirement/accept_extra/investigate/
+        defer. Requirement changes need a trusted decision and revised scenario. Acceptance never
+        proves tests passed or grants host permissions. A new review links previous_review_id.
+        """
+        require_enabled()
+        return decisions.behavior_review(request)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_batch_decisions(request: dict) -> dict[str,Any]:
+        """Present up to three independent ASK_NOW decisions as one frozen task-scoped batch.
+        Display full message, interpret a later actual user reply, submit only explicit answers.
+        Submit checks ALL frozen versions and saves supplied selections atomically; unanswered,
+        deferred/discussed items remain. Ambiguity is never whole-batch approval. Only frozen
+        explicit recommendations may use selection_basis=current_recommendation. New conditions
+        require revision/clarification. suspend retains pending history; re-present in a new chat.
+        Single-card callers remain supported. No business semantic classifier or host authorization.
+        """
+        require_enabled()
+        return decisions.batch_decisions(request)
 
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_screen_candidates(request: dict) -> dict[str,Any]:

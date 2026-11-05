@@ -11,8 +11,10 @@ from buildchoice.desktop.settings import read
 def handle_event(event):
     if read()['mode']=='off': return None
     if event.get('hook_event_name')=='PostToolUse':
+        from buildchoice.desktop.product_observer import observe as observe_product
+        product=observe_product(event,WORKSPACE)
         from buildchoice.desktop.read_observer import observe
-        return observe(event,WORKSPACE)
+        return product or observe(event,WORKSPACE)
     if event.get('hook_event_name')!='UserPromptSubmit':return None
     from buildchoice.desktop.prompt_policy import handle_prompt
     result=handle_prompt(event,WORKSPACE)

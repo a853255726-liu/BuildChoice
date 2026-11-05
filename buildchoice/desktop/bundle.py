@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 from buildchoice.desktop.common import ROOT, file_sha
 
-VERSION = '0.13.0'
+VERSION = '0.14.0'
 
 
 def build_core_runtime(destination, root=ROOT):
@@ -21,6 +21,7 @@ def build_core_runtime(destination, root=ROOT):
     names.add('docs/CANDIDATE_RISKS.md')
     names.add('docs/PROJECT_READS.md')
     names.add('docs/CONTEXT_WORKFLOW.md')
+    names.add('docs/PRODUCT_REVIEW.md')
     names.add('LICENSE')
     names.update('docs/contracts/'+name for name in ('acceptance-v1.schema.json','verification-v1.schema.json'))
     data = {name: (root/name).read_bytes() for name in sorted(names)}

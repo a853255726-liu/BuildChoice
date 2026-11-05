@@ -45,7 +45,7 @@ for result in archives:
         if 'core' in path.name:
             assert archive.read('LICENSE')==(root/'LICENSE').read_bytes()
             manifest=json.loads(archive.read('runtime_manifest.json'))
-            assert manifest['package_version']==VERSION=='0.13.0'
+            assert manifest['package_version']==VERSION=='0.14.0'
             assert not any('audit_web' in name or name.endswith(('.html','.css','.js')) for name in archive.namelist())
             assert 'scripts/buildchoice_audit.py' not in archive.namelist()
             assert {'scripts/buildchoice_run_verification.py','scripts/buildchoice_test_worker.py',
@@ -54,6 +54,10 @@ for result in archives:
                 'buildchoice/desktop/decision_document.py','buildchoice/desktop/instruction_record.py',
                 'buildchoice/desktop/document_projection.py','docs/CONTEXT_WORKFLOW.md'}<=set(archive.namelist())
             assert 'InstructionRequest' in json.loads(archive.read('docs/contracts/decision-v3.schema.json'))['$defs']
+            assert {'buildchoice/desktop/experience.py','buildchoice/desktop/product_store.py',
+                'buildchoice/desktop/product_contracts.py','buildchoice/desktop/workspace_snapshot.py',
+                'buildchoice/desktop/behavior_review.py','buildchoice/desktop/batch_decisions.py',
+                'buildchoice/desktop/product_observer.py','docs/PRODUCT_REVIEW.md'}<=set(archive.namelist())
             assert not any('model' in name for name in archive.namelist())
             for name,entry in manifest['files'].items():
                 data=archive.read(name)
@@ -64,6 +68,7 @@ for result in archives:
             assert plugin['version']==VERSION
             assert plugin['skills']=='./skills/'
             assert 'buildchoice/skills/decision-memory/SKILL.md' in archive.namelist()
+            assert 'buildchoice/skills/decision-discovery/references/product-review.md' in archive.namelist()
             assert set(json.loads(archive.read('buildchoice/hooks/hooks.json'))['hooks'])=={'UserPromptSubmit','PostToolUse'}
 
 # Initialize from the actual source and from the checksummed runtime bundle.

@@ -32,7 +32,7 @@ def change_lines(change):
     return lines or ['- 方案展示信息已更新。']
 
 
-def destination(store, relative):
+def destination(store, relative, marker=MARKER):
     if not isinstance(relative,str) or not relative or len(relative)>512 or ':' in relative:
         raise ValueError('Use a relative Markdown document path')
     parts=Path(relative.replace('\\','/')).parts
@@ -46,8 +46,8 @@ def destination(store, relative):
     if not target.is_relative_to(store.workspace) or target.suffix.lower()!='.md' or not target.parent.is_dir():
         raise ValueError('Choose an existing project directory and a Markdown filename')
     if target.exists():
-        with target.open('r',encoding='utf-8') as stream:header=stream.read(len(MARKER))
-        if header!=MARKER:raise ValueError('Existing user-authored document will not be overwritten')
+        with target.open('r',encoding='utf-8') as stream:header=stream.read(len(marker))
+        if header!=marker:raise ValueError('Existing user-authored document will not be overwritten')
     return target
 
 

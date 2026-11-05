@@ -18,11 +18,11 @@ def build_plugin(root=ROOT):
     root = Path(root)
     package = root/'plugins'/PLUGIN
     write_json(package/'.codex-plugin/plugin.json',{
-        'name':PLUGIN,'version':VERSION,'description':'A Codex plugin for reviewing important implementation choices before they become code.',
+        'name':PLUGIN,'version':VERSION,'description':'Trusted product choices, experience expectations and evidence-limited behavior reviews in Codex.',
         'author':{'name':'BuildChoice'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json','skills':'./skills/',
         'requires_local_executor':True,
         'interface':{'displayName':'BuildChoice','shortDescription':'在编程过程中确认重要的实现选择',
-                     'longDescription':'结合项目约束整理影响产品行为的选择，在 Codex 对话中逐项确认并记录。默认使用 Prompt-first 策略，可独立开启决策卡。',
+                     'longDescription':'结合项目资料确认重要选择，按任务维护可理解的产品预期，并对照开发前基线审阅行为差异。支持集中决策和跨聊天接续。',
                      'developerName':'BuildChoice','category':'Developer Tools','capabilities':['Read','Write']}})
     write_json(package/'.mcp.json',{'mcpServers':{'buildchoice':{
         'command':'python','args':['${PLUGIN_ROOT}/scripts/launch.py'],
@@ -30,7 +30,7 @@ def build_plugin(root=ROOT):
     command = 'python "${PLUGIN_ROOT}/scripts/buildchoice_plugin_hook.py"'
     events = {'UserPromptSubmit': [{'hooks': [{'type':'command','command':command,'timeout':5,
         'statusMessage':'BuildChoice: UserPromptSubmit'}]}]}
-    events['PostToolUse']=[{'matcher':'^Bash$|^mcp__filesystem__read_(file|text_file)$',
+    events['PostToolUse']=[{'matcher':'^Bash$|^exec_command$|^functions\\.exec_command$|^mcp__filesystem__read_(file|text_file)$',
         'hooks':[{'type':'command','command':command,'timeout':5,'statusMessage':'BuildChoice: observe project read'}]}]
     write_json(package/'hooks/hooks.json',{'description':'Prompt policy and observed decision replies; never blocks tasks.','hooks':events})
     marketplace = root/'.claude-plugin/marketplace.json'

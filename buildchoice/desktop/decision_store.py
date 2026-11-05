@@ -344,6 +344,10 @@ class DecisionStore:
         given={'decision_id':decision_id,'revision':revision}
         with self.connect() as db:
             self.begin(db)
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='product_active_batches'").fetchone():
+                batch=db.execute('SELECT * FROM product_active_batches WHERE host=?', (task['host_session_digest'],)).fetchone()
+                if batch and batch['expires']>=time.time():
+                    raise ValueError('A frozen batch is active; finish or suspend it before activating a single card')
             prior=db.execute('SELECT * FROM decision_v3_operations WHERE task_id=? AND operation=? AND key=?',(task['id'],'activate',key)).fetchone()
             if prior:
                 if prior['input_digest']!=fingerprint(given):raise ValueError('Idempotency key reused with changed input')

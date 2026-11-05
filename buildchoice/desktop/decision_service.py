@@ -364,6 +364,22 @@ class DecisionService:
         from .instruction_record import record
         return record(self,self.store(),request)
 
+    def experience(self, request):
+        from .experience import execute
+        return execute(self,request)
+
+    def workspace_snapshot(self, request):
+        from .workspace_snapshot import execute
+        return execute(self,request)
+
+    def behavior_review(self, request):
+        from .behavior_review import execute
+        return execute(self,request)
+
+    def batch_decisions(self, request):
+        from .batch_decisions import execute
+        return execute(self,request)
+
     def context_bundle(self, session_handle, query='', paths=None, task_id=None, since=None, max_chars=12000):
         from .task_context import build
         return build(self,self.store(),session_handle,query,paths or [],task_id,since,max_chars)

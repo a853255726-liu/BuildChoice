@@ -158,6 +158,19 @@ def build(service, store, handle, query='', paths=None, task_id=None, since=None
         'semantic_judgment_by':'llm','does_not_authorize_host_operations':True}
     from .document_projection import status as projection_status
     result['document']=projection_status(service,store,handle)
+    # Opt-in tasks are shared within this workspace, while confirmation handles remain chat-local.
+    # No product records/tables are created for normal development context queries.
+    result['product_tasks']=[]
+    with store.connect() as db:
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='product_tasks'").fetchone():
+            for product in db.execute('SELECT p.*,t.workspace FROM product_tasks p JOIN decision_v3_tasks t ON t.id=p.task WHERE t.workspace=?', (str(store.workspace),)):
+                from . import product_store as ps
+                entry={'task_id':product['task'],'enabled':bool(product['enabled']), 'generation':product['generation'],
+                    'scenario_count':len(ps.objects(db,product['task'],'scenario')),
+                    'review_ids':[r['id'] for r in ps.objects(db,product['task'],'behavior_review')],
+                    'resume':'buildchoice_experience status with task_id; present current content before new approvals'}
+                if len(encode(result))+len(encode(entry))<max_chars-500:result['product_tasks'].append(entry)
+                else:result['omitted']['product_tasks']=result['omitted'].get('product_tasks',0)+1
     reply=json.loads(ctx['outcome_json']).get('_reply')
     if reply and json.loads(ctx['outcome_json']).get('confirmation_status')=='awaiting_user':
         result['pending_reply']={k:reply[k] for k in ('decision_id','revision','message_digest')}

@@ -71,7 +71,7 @@ try:
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
     listed={t['name']:t for t in send('tools/list',{})['tools']};names=set(listed)
-    assert len(names)==20,names
+    assert len(names)==24,names
     from jsonschema import Draft202012Validator
     schema=listed['buildchoice_screen_candidates']['inputSchema'];Draft202012Validator.check_schema(schema)
     assert 'suggested_action' in schema['$defs']['Candidate']['required']
@@ -299,7 +299,7 @@ try:
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':conditions['criteria'],'idempotency_key':'pilot-off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
-    print('PASS actual MCP: advertised contracts, 20 tools, reusable context, resume, direct/LLM-bound replies, protected decision document, memory, explicit verification and off/pilot-off behavior')
+    print('PASS actual MCP: advertised contracts, 24 tools, reusable context, resume, direct/LLM-bound replies, protected decision document, memory, explicit verification and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)

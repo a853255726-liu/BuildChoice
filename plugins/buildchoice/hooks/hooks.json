@@ -15,7 +15,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "^Bash$|^mcp__filesystem__read_(file|text_file)$",
+        "matcher": "^Bash$|^exec_command$|^functions\\.exec_command$|^mcp__filesystem__read_(file|text_file)$",
         "hooks": [
           {
             "type": "command",
