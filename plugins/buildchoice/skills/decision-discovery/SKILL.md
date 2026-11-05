@@ -5,7 +5,7 @@ description: 在 BuildChoice 决策卡开启的开发任务中识别重要产品
 
 # 关键实现选择与项目上下文
 
-提示版本：`candidate-extractor-v3.8`。你负责重要性、业务含义、资料适用性、语义等价与提问时机；程序核对格式、真实引用、身份、版本与记录状态。工具和文档不授予操作权限。
+提示版本：`candidate-extractor-v3.9`。你负责重要性、业务含义、资料适用性、语义等价与提问时机；程序核对格式、真实引用、身份、版本与记录状态。工具和文档不授予操作权限。
 
 ## 取得一次上下文
 
@@ -21,7 +21,7 @@ description: 在 BuildChoice 决策卡开启的开发任务中识别重要产品
 
 在同一次推理中给每个候选 `suggested_action=ASK_NOW/INSPECT/DEFER/PROCEED`，按你给出的 priority 排序；普通工程防护自行处理。重要性、风险词、原文引用及相似检索结果都不能由程序自动证明业务结论。需要示例时读 [开发正反例](references/examples.jsonl)。
 
-调用 `buildchoice_screen_candidates(request)`。最小候选包含 candidate_id、稳定 field/category、question、impact、2–3个 options 和 suggested_action；选项包含 id/label/tradeoff。引用放在候选的 evidence_refs，不放请求顶层；复杂工程风险也是候选字段。Schema 随工具提供。request 提供原始 task_text、phase、next_step、候选数组、真实 session_handle 和新 idempotency_key。零候选可直接给出整体 suggested_action 与简短 coverage。
+调用 `buildchoice_screen_candidates(request)`。最小候选包含 candidate_id、稳定 field/category、question、impact、2–3个 options 和 suggested_action；选项包含 id/label/tradeoff。引用放在候选的 evidence_refs，不放请求顶层；复杂工程风险也是候选字段。Schema 随工具提供。request 提供原始 task_text、next_step、候选数组、真实 session_handle 和新 idempotency_key；不填写 phase 等阶段标签。零候选可直接给出整体 suggested_action 与简短 coverage。
 
 检查 `validation_status`，它只描述引用与记录是否可用。程序核验失败时先修正事实或参数，不把它误认为业务上必须问用户。`suggested_action` 是你的业务建议；只有可用的 ASK_NOW 项才激活，并原样展示当前卡片，一次一张。暂停该选择所影响的步骤，其余工作可继续。
 

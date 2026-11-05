@@ -64,10 +64,32 @@ class ContextWorkflowTests(unittest.TestCase):
     def test_advertised_contract_exposes_fields_and_enums_for_minimal_request(self):
         schema=input_schema('ScreenRequest');Draft202012Validator.check_schema(schema)
         self.assertIn('suggested_action',schema['$defs']['Candidate']['required'])
+        self.assertNotIn('phase',schema['$defs']['ScreenRequest']['properties'])
+        self.assertNotIn('phase',schema['$defs']['ScreenRequest']['required'])
         self.assertEqual(schema['$defs']['EngineeringRisk']['properties']['recoverability']['enum'],['easy','costly','irreversible','unknown'])
         minimal={k:v for k,v in candidate().items() if k in ('candidate_id','field','category','question','impact','options')}
         minimal['suggested_action']='ASK_NOW'
         self.assertEqual(self.screen(minimal)['decisions'][0]['status'],'ASK_NOW')
+
+    def test_omitted_phase_records_unknown_metadata_and_preserves_legacy_calls(self):
+        for phase in (None,'before_implementation','during_implementation'):
+            self.handle=self.hook(self.prompt)
+            request={'task_text':self.prompt,'next_step':'Check visibility','candidates':[],
+                'session_handle':self.handle,'idempotency_key':uuid.uuid4().hex,'suggested_action':'PROCEED'}
+            if phase is not None:request['phase']=phase
+            result=self.service.screen(request)
+            self.assertEqual(result['screen_status'],'PROCEED')
+            with self.store.connect() as db:
+                recorded=db.execute('SELECT phase FROM decision_v3_tasks WHERE id=?',(result['task_id'],)).fetchone()[0]
+            self.assertEqual(recorded,phase or 'unspecified')
+            if phase is None:self.assertNotIn('phase',request)
+
+    def test_explicit_invalid_phase_is_rejected_without_writing_a_task(self):
+        with self.store.connect() as db:before=db.execute('SELECT count(*) FROM decision_v3_tasks').fetchone()[0]
+        for phase in ('实施前需求检查','requirements_check','requirements'):
+            with self.assertRaisesRegex(ValueError,'phase'):
+                self.screen(phase=phase)
+        with self.store.connect() as db:self.assertEqual(db.execute('SELECT count(*) FROM decision_v3_tasks').fetchone()[0],before)
 
     def test_context_reuses_collector_source_without_new_receipts(self):
         (self.workspace/'README.md').write_text('Local profile requirement',encoding='utf-8')

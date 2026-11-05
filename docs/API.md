@@ -69,7 +69,7 @@ Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的
 
 - `buildchoice_screen_candidates(request)`：接收 LLM 的 ASK_NOW / INSPECT / DEFER / PROCEED 建议，独立核对字段、来源及状态，附带 Agent 声明的覆盖依据；按 task_id + idempotency_key 防止重复登记。
 
-工具列表直接提供 Candidate 字段和枚举 Schema。最小候选需要 candidate_id、field、category、question、impact、options 和 suggested_action；其他说明可按需提供。priority=0..100 只用于调用方声明的排序，allow_defer 由调用方指定。错误返回紧凑字段路径与预期类型。响应同时保留 suggested_action 和 validation_status；来源失效时 status=INSPECT，不把文件变化解释为撤销用户选择。
+工具列表直接提供 Candidate 字段和枚举 Schema。最小候选需要 candidate_id、field、category、question、impact、options 和 suggested_action；其他说明可按需提供。请求提供 task_text、next_step、candidates、session_handle 和 idempotency_key，不填写 phase。省略时程序只记录 unspecified，不推断开发阶段，也不影响分流；已有 before_implementation / during_implementation 调用仍兼容，显式非法值仍拒绝。priority=0..100 只用于调用方声明的排序，allow_defer 由调用方指定。错误返回紧凑字段路径与预期类型。响应同时保留 suggested_action 和 validation_status；来源失效时 status=INSPECT，不把文件变化解释为撤销用户选择。
 
 筛选的任务/句柄绑定、候选、事件及缓存响应在单一写事务中提交，失败整体回滚。缓存只在所引用文件、未读资源和决定/确认/覆盖快照仍匹配时重放；过期或旧格式缓存返回 `CACHED_SCREEN_STALE`，执行中输入变化返回 `SCREEN_INPUT_CHANGED_DURING_EVALUATION`。前者需读取当前来源/状态后换新键筛选，后者未提交该请求的写入。新筛选的语义指纹不包含连接句柄或重复的 task_id，但先校验当前会话归属；改变候选等语义输入仍拒绝复用同一键。
 - `buildchoice_card_activate(task_id, decision_id, revision, idempotency_key, session_handle)`：同会话最多激活一张待答卡，返回固定文本与 delivery_status=not_observed；重复激活同一卡片即使换键也不续期或重复写激活事件。

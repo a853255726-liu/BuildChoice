@@ -20,6 +20,7 @@ def validate_options(options, recommended):
 def validate(kind, value):
     if kind in ('Candidate','ScreenRequest'):
         value=deepcopy(value)
+        if kind=='ScreenRequest' and isinstance(value,dict):value.setdefault('phase','unspecified')
         candidates=[value] if kind=='Candidate' else value.get('candidates',[])
         for candidate in candidates:
             if isinstance(candidate,dict):
@@ -65,6 +66,9 @@ def input_schema(kind):
         for reference in references(SCHEMA['$defs'][pending.pop()]):
             if reference not in needed:needed.add(reference);pending.append(reference)
     definitions={key:deepcopy(SCHEMA['$defs'][key]) for key in sorted(needed)}
+    if kind=='ScreenRequest':
+        # Stage is archival metadata, not a business judgment or model input requirement.
+        definitions[kind]['properties'].pop('phase',None)
     if 'Candidate' in definitions:
         definitions['Candidate']['required']=list(dict.fromkeys(definitions['Candidate']['required']+['suggested_action']))
     return {'$ref':'#/$defs/'+kind,'$defs':definitions}

@@ -11,6 +11,8 @@
 
 ## 最小候选
 
+请求外层仅需 task_text、next_step、candidates、session_handle、idempotency_key，不填写 phase。阶段记录由程序处理，不影响业务判断。
+
 ```json
 {"candidate_id":"saving","decision_key":"receipt.saving.policy","field":"小票保存方式","category":"business_rule","question":"识别后何时入账？","impact":"影响错误识别是否直接进入账本。","suggested_action":"ASK_NOW","options":[{"id":"A","option_key":"review.before.save","label":"核对后入账","tradeoff":"可修改金额等字段，点击确认后保存。"},{"id":"B","option_key":"save.automatically","label":"自动入账","tradeoff":"步骤少，但识别错误会直接进入账本。"}]}
 ```

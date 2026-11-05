@@ -75,6 +75,7 @@ try:
     from jsonschema import Draft202012Validator
     schema=listed['buildchoice_screen_candidates']['inputSchema'];Draft202012Validator.check_schema(schema)
     assert 'suggested_action' in schema['$defs']['Candidate']['required']
+    assert 'phase' not in schema['$defs']['ScreenRequest']['properties']
     assert schema['$defs']['Candidate']['properties']['suggested_action']['enum']==['ASK_NOW','INSPECT','DEFER','PROCEED']
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
@@ -210,7 +211,7 @@ try:
 
     # Actual MCP context/resume, LLM-interpreted reply and protected generated document.
     natural=memory_hook('开发用户页面的访问范围','1','natural-smoke')
-    natural_request={'task_text':'开发用户页面的访问范围','phase':'before_implementation',
+    natural_request={'task_text':'开发用户页面的访问范围',
         'next_step':'Implement visibility','candidates':[candidate()],'session_handle':natural,'idempotency_key':'natural-screen'}
     natural_response=call('buildchoice_screen_candidates',{'request':natural_request})
     natural_item=natural_response['decisions'][0]

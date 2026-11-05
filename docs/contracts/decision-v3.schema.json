@@ -381,8 +381,12 @@
         "phase": {
           "enum": [
             "before_implementation",
-            "during_implementation"
-          ]
+            "during_implementation",
+            "unspecified"
+          ],
+          "default": "unspecified",
+          "deprecated": true,
+          "description": "Optional legacy metadata. Omit in new calls; never used for business routing."
         },
         "next_step": {
           "type": "string",
@@ -430,7 +434,6 @@
         }
       },
       "required": [
-        "phase",
         "next_step",
         "task_text",
         "candidates",

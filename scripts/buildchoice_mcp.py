@@ -120,6 +120,7 @@ def main():
         Each candidate supplies suggested_action=ASK_NOW/INSPECT/DEFER/PROCEED. Importance,
         risk meaning, source applicability and semantic equivalence are LLM judgments.
         Read validation_status separately. Use buildchoice_context to reuse real sources.
+        Omit phase; stage metadata is recorded by the server and does not affect routing.
         """
         require_enabled()
         return decisions.screen(request)
