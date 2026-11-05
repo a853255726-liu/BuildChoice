@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from buildchoice.desktop.decision_service import DecisionService
 from buildchoice.desktop.decision_store import DecisionStore
+from buildchoice.desktop.decision_contracts import validate
 from buildchoice.desktop import document_projection
 from test_guidance import candidate
 
@@ -160,6 +161,10 @@ class InstructionTests(unittest.TestCase):
         self.assertTrue(linked['does_not_prove_correctness'])
         status=self.service.status(first['task_id'],self.handle)
         self.assertEqual(status['decisions'][0]['confirmation']['provenance'],'llm_interpreted_user_instruction')
+        confirmation=status['decisions'][0]['confirmation']
+        event={k:confirmation[k] for k in ('decision_id','revision','choice_id','provenance','host_turn_digest','user_prompt_digest')}
+        self.assertEqual(validate('ConfirmationEvent',event),event)
+        validate('ConfirmationEvent',event|{'provenance':'llm_interpreted_user_reply'})
 
     def test_new_key_cannot_duplicate_same_chat_decision(self):
         self.record();self.observe('再次保存同一选择')
