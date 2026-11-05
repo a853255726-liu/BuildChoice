@@ -74,7 +74,7 @@ class RetrievalIdentityTests(unittest.TestCase):
     def test_stable_decision_and_option_keys_survive_label_rewording_and_reordered_ids(self):
         f=self.f;value=candidate(f)
         _,_,entry,_=confirm_rule(f,value)
-        changed=deepcopy(value);changed['field']='正式入账时机'
+        changed=deepcopy(value);changed.update(field='正式入账时机',suggested_action='PROCEED')
         changed['options'][0].update(id='B',label='先核验再存档',tradeoff='核验完成才产生账目')
         changed['options'][1]['id']='A'
         _,_,_,item=screen(f,changed)

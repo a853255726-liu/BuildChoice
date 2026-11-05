@@ -27,16 +27,18 @@ def main():
     from buildchoice.desktop.decision_service import DecisionService
     decisions=DecisionService(WORKSPACE,session_id)
     server = FastMCP('buildchoice', log_level='WARNING', instructions=(
-        'Default Prompt-first: follow clarification principles; use on-demand decision audit only when requested. '
-        'For audit: start a session, read real workspace sources with buildchoice_audit_read, register important '
-        'decisions with JSON pointers or exact quotes, then return buildchoice_audit_report. Source binding is not '
-        'semantic approval. Task declarations are not verified user confirmation. No automatic audit. '
-        'The LLM judges importance, applicability and timing. Python validates formats, citations and state. '
-        'No second review pass. Coverage is Agent-declared and never proves completeness or grants authorization.'))
+        'BuildChoice records implementation choices with source, ownership and version checks. '
+        'Follow decision-discovery Skill for workflow. Core tools cover daily decisions; full tools '
+        'add optional audit, memory management, implementation links and experimental verification. '
+        'The LLM judges meaning, importance and timing. Source binding is not semantic approval '
+        'or authorization for host operations. No automatic audit or independent validation claim.'))
     annotation = ToolAnnotations(readOnlyHint=True, destructiveHint=False,
                                  idempotentHint=False, openWorldHint=False)
     active_session = None
     listed_tool_names = None
+    core_tools={'buildchoice_context','buildchoice_screen_candidates','buildchoice_card_activate',
+        'buildchoice_reply_interpret','buildchoice_record_instruction','buildchoice_decision_document',
+        'buildchoice_decision_status'}
 
     async def available_tools():
         tools = await server.list_tools()
@@ -50,6 +52,8 @@ def main():
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         elif decisions.settings()['mode']=='off':
             tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage','buildchoice_context','buildchoice_reply_interpret','buildchoice_record_instruction','buildchoice_decision_document')]
+        if decisions.settings()['tool_profile']=='core':
+            tools=[t for t in tools if t.name in core_tools or t.name.startswith('buildchoice_settings_')]
         return tools
 
     async def notify_tool_changes():
@@ -80,6 +84,7 @@ def main():
             model_config = ConfigDict(extra='forbid')
             mode: Literal['Prompt 优先', '完全关闭'] | None = None
             decision_guidance: Literal['关闭', '试用'] | None = None
+            tool_profile: Literal['日常', '完整'] | None = None
 
         class SettingsUpdateResult(BaseModel):
             values: dict[str, Any]
@@ -104,13 +109,13 @@ def main():
             return settings_status(args.settings)
 
     def ledger():
-        if read_runtime_settings(args.settings)['mode'] == 'off':
-            raise ValueError('FEATURE_DISABLED')
+        require_enabled(advanced=True)
         from buildchoice.desktop.audit import Ledger
         return Ledger(WORKSPACE)
 
-    def require_enabled():
+    def require_enabled(advanced=False):
         if read_runtime_settings(args.settings)['mode']=='off': raise ValueError('FEATURE_DISABLED')
+        if advanced and decisions.settings()['tool_profile']!='full':raise ValueError('TOOL_PROFILE_REQUIRES_FULL')
 
     audit_write = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 
@@ -174,6 +179,9 @@ def main():
                                       path: str = 'BUILDCHOICE_DECISIONS.md') -> dict[str,Any]:
         """Generate readable recorded choices, scope, provenance, pending items and literal changes.
         write=false returns Markdown; write=true atomically saves a generated project document.
+        record_instruction already synchronizes the project document; do not write it again unless
+        pending or explicitly exporting. To repair the canonical path omit task_id/include_archived.
+        Task-specific or archived exports must use a separate filename, not the canonical project path.
         Existing user-authored files and linked/private paths are never overwritten.
         Changed references need LLM review; this does not revoke user choices or certify code.
         """
@@ -198,7 +206,7 @@ def main():
         current rules may apply. Lists origin, conflicts and exact user lifecycle commands.
         A read never renews retention, promotes rules or creates confirmations. No host permission.
         """
-        require_enabled()
+        require_enabled(advanced=True)
         return decisions.memory(query,include_archived,session_handle)
 
     @server.tool(annotations=ToolAnnotations(readOnlyHint=False,destructiveHint=False,
@@ -212,7 +220,7 @@ def main():
         is needed for a clear request. Never invoke merely because a decision was confirmed.
         Does not create user choices, expand scope or grant execution permission.
         """
-        require_enabled()
+        require_enabled(advanced=True)
         return decisions.manage_memory(memory_id,revision,action,session_handle)
 
     @server.tool(annotations=annotation,structured_output=True)
@@ -228,7 +236,7 @@ def main():
     def buildchoice_decision_prepare_revision(task_id: str, decision_id: str, revision: int, candidate: dict,
                                        reason: str, session_handle: str | None = None) -> dict[str,Any]:
         """Append a proposed new version; never writes a trusted user choice. Re-activate and ask anew."""
-        require_enabled()
+        require_enabled(advanced=True)
         return decisions.prepare_revision(task_id,decision_id,revision,candidate,reason,session_handle)
 
     @server.tool(annotations=audit_write,structured_output=True)
@@ -241,7 +249,7 @@ def main():
         The association is Agent-reported, not proof of correct implementation or human approval.
         Decision status reports links needing review after a revision or file change.
         """
-        require_enabled()
+        require_enabled(advanced=True)
         return decisions.link_implementation(task_id,decision_id,revision,path,note,start_line,end_line,session_handle)
 
     @server.tool(annotations=audit_write,structured_output=True)
@@ -255,7 +263,7 @@ def main():
         Test IDs are actual unittest IDs under module buildchoice_tests. This does not approve new
         product rules, separately confirm the criteria or execute tests. See acceptance-v1 schema.
         """
-        require_enabled()
+        require_enabled(advanced=True)
         return decisions.acceptance_prepare(task_id,decision_id,revision,criteria,session_handle,idempotency_key)
 
     @server.tool(annotations=audit_write,structured_output=True)
@@ -270,7 +278,7 @@ def main():
         path. A report path or Agent claim is not an execution receipt. Missing tests stay inconclusive.
         Returns historical verdict, current/stale applicability and current_pass within the declared scope.
         """
-        require_enabled()
+        require_enabled(advanced=True)
         return decisions.verify_decision(task_id,decision_id,revision,acceptance_id,code_evidence_refs,
                                          execution_id,session_handle,idempotency_key)
 

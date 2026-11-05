@@ -2,7 +2,7 @@
 from .decision_contracts import validate
 
 
-def make_card(decision_id, revision, candidate, route):
+def make_card(decision_id, revision, candidate):
     recommendation = None
     if candidate['recommended_option_id'] is not None and candidate['recommendation_reason'].strip():
         recommendation = {'option_id': candidate['recommended_option_id'], 'reason': candidate['recommendation_reason']}
@@ -10,7 +10,7 @@ def make_card(decision_id, revision, candidate, route):
             'question': candidate['question'], 'why_it_matters': candidate['impact'], 'options': candidate['options'],
             'recommendation': recommendation, 'allow_discuss': True,
             'allow_defer': candidate.get('allow_defer',True),
-            'blocked_steps': candidate.get('depends_on', []) or ([candidate['field']] if route['effective_dependency'] != 'no' else [])}
+            'blocked_steps': candidate.get('depends_on', []) or [candidate['field']]}
     return validate('Card', card)
 
 

@@ -14,13 +14,13 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 class Connection:
-    def __init__(self,native=True):
+    def __init__(self,native=True,profile='full'):
         self.workspace=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir()))/('buildchoice-notify-'+uuid.uuid4().hex)
         self.workspace.mkdir()
         self.settings=self.workspace/'settings.json'
         self.settings.write_text('{"config_version":1,"mode":"prompt"}',encoding='utf-8')
         self.decisions=self.workspace/'decision_v3.json'
-        self.decisions.write_text('{"config_version":2,"mode":"off","context_ttl_seconds":900}',encoding='utf-8')
+        self.decisions.write_text(json.dumps({'config_version':2,'mode':'off','context_ttl_seconds':900,'tool_profile':profile}),encoding='utf-8')
         self.env={**os.environ,'BUILDCHOICE_WORKSPACE':str(self.workspace),
             'BUILDCHOICE_V3_SETTINGS':str(self.decisions),'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
         self.log=(self.workspace/'server.log').open('w',encoding='utf-8')

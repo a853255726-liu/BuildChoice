@@ -6,7 +6,7 @@ LLM 通过 `suggested_action` 提交业务处理建议，程序返回独立的 `
 
 ## 连接与可用工具
 
-安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 20 个工具：
+安装器绑定目标工作区、Python 和运行时。默认使用日常工具集（core）：启用原生设置与决策引导时提供 10 个工具，包含设置 3 项、状态、context、screen_candidates、card_activate、reply_interpret、record_instruction 和 decision_document。完整工具集（full）提供下表全部 20 项：
 
 | 分组 | 工具 |
 |---|---|
@@ -17,7 +17,9 @@ LLM 通过 `suggested_action` 提交业务处理建议，程序返回独立的 `
 | 实现与验证 | buildchoice_link_implementation、buildchoice_acceptance_prepare、buildchoice_verify_decision |
 | 项目记忆 | buildchoice_memory、buildchoice_memory_manage |
 
-决策卡关闭时隐藏决策写入、实现关联、验收/验证和记忆工具，保留 8 个工具；完全关闭时仅保留设置与决策状态，共 4 个。工具列表变更会发送通知，调用时仍执行开关校验。
+决策引导关闭时，日常工具集保留设置与状态共 4 项，完整工具集另保留独立审计共 8 项；完全关闭时两者都只保留 4 项。未启用原生设置时，各档位数量减 3。工具集过滤与运行开关同时在列表和调用时校验。
+
+原生设置“工具集：日常 / 完整”对应 tool_profile=core/full。命令行可执行 `python scripts/buildchoice_decisions.py core` 或 `full`，支持已有的 --workspace / --data-home / --config 项目绑定。未包含该设置的旧配置默认 core，不改写配置文件。切换发送 tools/list_changed；切换只改变入口可见性，不创建决定、执行实验或放宽授权校验。
 
 会话句柄来自实际 UserPromptSubmit Hook。创建或访问可信任务时须传入当前有效句柄；自行填写 session_id 或复述“用户已同意”不能建立可信确认。工具调用不授予文件、网络或命令执行许可。
 
@@ -70,6 +72,8 @@ Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的
 - `buildchoice_screen_candidates(request)`：接收 LLM 的 ASK_NOW / INSPECT / DEFER / PROCEED 建议，独立核对字段、来源及状态，附带 Agent 声明的覆盖依据；按 task_id + idempotency_key 防止重复登记。
 
 工具列表直接提供 Candidate 字段和枚举 Schema。最小候选需要 candidate_id、field、category、question、impact、options 和 suggested_action；其他说明可按需提供。请求提供 task_text、next_step、candidates、session_handle 和 idempotency_key，不填写 phase。省略时程序只记录 unspecified，不推断开发阶段，也不影响分流；已有 before_implementation / during_implementation 调用仍兼容，显式非法值仍拒绝。priority=0..100 只用于调用方声明的排序，allow_defer 由调用方指定。错误返回紧凑字段路径与预期类型。响应同时保留 suggested_action 和 validation_status；来源失效时 status=INSPECT，不把文件变化解释为撤销用户选择。
+
+公布与服务端校验使用同一 Candidate 定义。新调用缺少 suggested_action 会报契约错误，不再从其他字段推导。needs_user_choice、current_dependency、relevance、engineering_detail、why_user_choice 不属于新请求；旧账本中的这些字段保持原样可读，修订调用需按当前契约重新提交。来源、范围、风险、工程后果和记忆匹配仍为可选扩展，不必为常规候选填满所有字段。
 
 筛选的任务/句柄绑定、候选、事件及缓存响应在单一写事务中提交，失败整体回滚。缓存只在所引用文件、未读资源和决定/确认/覆盖快照仍匹配时重放；过期或旧格式缓存返回 `CACHED_SCREEN_STALE`，执行中输入变化返回 `SCREEN_INPUT_CHANGED_DURING_EVALUATION`。前者需读取当前来源/状态后换新键筛选，后者未提交该请求的写入。新筛选的语义指纹不包含连接句柄或重复的 task_id，但先校验当前会话归属；改变候选等语义输入仍拒绝复用同一键。
 - `buildchoice_card_activate(task_id, decision_id, revision, idempotency_key, session_handle)`：同会话最多激活一张待答卡，返回固定文本与 delivery_status=not_observed；重复激活同一卡片即使换键也不续期或重复写激活事件。

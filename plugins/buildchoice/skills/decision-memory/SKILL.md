@@ -7,6 +7,8 @@ description: 查询 BuildChoice 项目已确认的决策记忆；在用户明确
 
 使用本轮 Hook 提供的真实 `buildchoice-v3-ctx-...` 句柄。仅在 V3 pilot 开启时管理记忆；缺少可信 Hook 或工具不可用时，说明尚未保存，不编造确认、句柄或本地 Hook 事件。不修改宿主执行权限。
 
+日常工具集可通过 context 查询项目参考。用户明确要求长期保存或管理时，需要完整工具集；可使用原生设置“工具集：完整”、settings_update 的 tool_profile，或 `python scripts/buildchoice_decisions.py full` 启用。启用只暴露入口，真实管理指令、目标和版本仍按下述约束核验。
+
 用户可以说“把刚才的选择长期记住”“以后这个项目都按这个方案来”“把人工核对设为项目默认规则”“记住之前关于数据存储的决定”。也可查询、取消长期保存、遗忘或恢复已有记忆。普通 A/B 回答只创建 reference；没有明确管理请求时，不建议升级、不追问是否长期保存。
 
 优先复用 `buildchoice_context` 中的 memory 和 management_request；需要更完整或归档结果时调用 `buildchoice_memory(query, include_archived, session_handle)`，用用户提及的行为、主题或方案检索 SQLite 历史。需要恢复时包含归档记录。结合对话判断目标含义，检查已选方案、revision、state、scope_key、conditions 和冲突。相似检索结果不代表修改授权，也不能把未选选项当成原选择。

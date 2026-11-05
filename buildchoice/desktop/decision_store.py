@@ -402,7 +402,7 @@ class DecisionStore:
             result.pop('processing',None)
             result.pop('memory',None)
             for name in ('model_status','model_fields'):result.pop(name,None)
-            result['card']=make_card(decision_id,next_revision,candidate,{'effective_dependency':candidate['current_dependency']})
+            result['card']=make_card(decision_id,next_revision,candidate)
             db.execute("UPDATE decision_v3_items SET state='superseded' WHERE id=? AND revision=?",(decision_id,revision))
             db.execute('UPDATE decision_v3_active SET decision_id=NULL,revision=NULL WHERE decision_id=?',(decision_id,))
             db.execute('INSERT INTO decision_v3_items VALUES(?,?,?,?,?,?,?,?,?)',(decision_id,next_revision,task['id'],row['field_key'],encode(candidate),encode(result),'screened',1,now()))

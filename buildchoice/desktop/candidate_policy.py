@@ -41,10 +41,6 @@ def deduplicate(candidates):
             for r in prior.get('history_matches',[])+original.get('history_matches',[])}.values())
         prior['_candidate_ids'].append(original['candidate_id'])
         prior['risk_flags'] = sorted(set(prior['risk_flags'] + original['risk_flags']))
-        for attr in ('needs_user_choice', 'current_dependency', 'relevance'):
-            values = [prior.get(attr, 'yes'), original.get(attr, 'yes')]
-            prior[attr] = 'yes' if 'yes' in values else 'uncertain' if 'uncertain' in values else 'no'
-        prior['engineering_detail'] = prior.get('engineering_detail', False) and original.get('engineering_detail', False)
         seen = {json.dumps(r, sort_keys=True) for r in prior['evidence_refs']}
         for reference in original['evidence_refs']:
             if json.dumps(reference, sort_keys=True) not in seen:
@@ -52,18 +48,16 @@ def deduplicate(candidates):
     return [result[key] for key in order]
 
 
-def route(candidate, evidence, confirmation=None, next_step=''):
+def route(candidate, evidence, confirmation=None):
     """Keep the model's recommendation separate from objective evidence validation."""
     action=candidate.get('suggested_action')
-    if action is None:
-        # These are explicit caller declarations, not risk/keyword inference.
-        action=('PROCEED' if candidate.get('relevance')=='no' or candidate.get('engineering_detail') or
-                candidate['needs_user_choice']=='no' else 'DEFER' if candidate['current_dependency']=='no' else 'ASK_NOW')
+    if action not in ('ASK_NOW','INSPECT','DEFER','PROCEED'):
+        raise ValueError('Explicit suggested_action required')
     validation='needs_evidence' if evidence.get('invalid') or evidence.get('unread') else 'valid'
     status='INSPECT' if validation!='valid' else 'PROCEED' if confirmation else action
     reasons=(['REFERENCE_RECHECK_REQUIRED'] if validation!='valid' else
              ['EXISTING_RECORDED_CHOICE'] if confirmation else ['LLM_RECOMMENDATION'])
-    return {'status':status,'reason_codes':reasons,'effective_dependency':candidate['current_dependency'],
+    return {'status':status,'reason_codes':reasons,
             'suggested_action':action,'validation_status':validation,'semantic_judgment_by':'llm'}
 
 

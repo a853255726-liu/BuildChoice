@@ -33,7 +33,7 @@ def setup_fixture(browser=False):
            'turn_id':'1','prompt':'开发拍照记账应用，识别结果核对后才正式保存。'}
     handle=store.observe_hook(event)['session_handle']
     candidate={'candidate_id':'saving','field':'入账流程','category':'business_rule','question':'何时正式入账？',
-        'impact':'错误识别可能进入正式账本','why_user_choice':'产品使用流程','needs_user_choice':'yes','current_dependency':'yes',
+        'impact':'错误识别可能进入正式账本','suggested_action':'ASK_NOW',
         'risk_flags':[],'evidence_refs':[],'options':[{'id':'A','label':'核对后保存','tradeoff':'确认前允许修改'},
           {'id':'B','label':'直接保存','tradeoff':'识别后立即入账'}],'recommended_option_id':None,'recommendation_reason':''}
     response=service.screen({'task_text':event['prompt'],'phase':'before_implementation','next_step':'实现入账流程',

@@ -24,8 +24,7 @@ def validate(kind, value):
         candidates=[value] if kind=='Candidate' else value.get('candidates',[])
         for candidate in candidates:
             if isinstance(candidate,dict):
-                for name,default in {'why_user_choice':candidate.get('impact',''),
-                    'needs_user_choice':'uncertain','current_dependency':'uncertain','risk_flags':[],
+                for name,default in {'risk_flags':[],
                     'evidence_refs':[],'recommended_option_id':None,'recommendation_reason':''}.items():
                     candidate.setdefault(name,default)
     try:Draft202012Validator({**SCHEMA, '$ref': '#/$defs/' + kind}).validate(value)
@@ -69,6 +68,4 @@ def input_schema(kind):
     if kind=='ScreenRequest':
         # Stage is archival metadata, not a business judgment or model input requirement.
         definitions[kind]['properties'].pop('phase',None)
-    if 'Candidate' in definitions:
-        definitions['Candidate']['required']=list(dict.fromkeys(definitions['Candidate']['required']+['suggested_action']))
     return {'$ref':'#/$defs/'+kind,'$defs':definitions}

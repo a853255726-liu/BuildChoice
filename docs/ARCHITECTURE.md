@@ -22,7 +22,7 @@ UserPromptSubmit → 工作区检查 → Prompt 澄清原则
            断点恢复、项目复用、文档与变化摘要
 ```
 
-Hook 不负责语义分类。`coding_request()` 仅提供正向提示，匹配失败不阻止生成句柄。句柄本身不要求发卡或调用工具；普通解释与咨询直接回答。已有待答卡的回复优先关联到原任务。
+Hook 只输出本轮可信句柄、回复/记忆处理状态和基本 Skill 触发提示，不识别开发动作或重复注入完整流程。工作流在 decision-discovery Skill 中维护，细节按需读参考文件。句柄本身不要求发卡或调用工具；已有待答卡仍由程序关联到原任务。
 
 ## 模块边界
 
@@ -86,11 +86,11 @@ Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用
 
 | 标识 | 用途 |
 |---|---|
-| 0.12.0 | 产品发布版本，写入插件元数据和分发包名称 |
+| 0.13.0 | 产品发布版本，写入插件元数据和分发包名称 |
 | V3 / decision.v3 | 决策卡流程及其数据契约，与产品版本分别演进 |
 | audit.v1 | 文件来源、引用与兼容审计记录格式 |
 | memory.v1 | 项目决策记忆的查询结果格式 |
 | context.v1 / decision-document.v1 | 上下文与可读决策文档结果格式 |
-| candidate-extractor-v4.0 | Agent 候选提取指引版本 |
+| candidate-extractor-v4.1 | Agent 候选提取指引版本 |
 
 .claude-plugin/marketplace.json 是当前安装器使用的本地市场兼容布局；plugins/buildchoice/.codex-plugin/plugin.json 是 Codex 插件清单。安装器在独立数据目录生成插件副本和市场文件；源码内的文件用作模板。install_local.py 通过 openai_codex SDK 调用 Codex app-server 的 plugin/install 和 plugin/read；目录名称不代表运行了 Claude 服务。

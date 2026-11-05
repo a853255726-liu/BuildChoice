@@ -48,8 +48,7 @@ class ContextWorkflowTests(unittest.TestCase):
 
     def test_llm_action_is_not_overridden_by_risk_keywords_or_uncertainty(self):
         for action in ('PROCEED','DEFER','INSPECT','ASK_NOW'):
-            item=self.screen({**candidate(),'suggested_action':action,'risk_flags':['payment','publish'],
-                'engineering_detail':True,'current_dependency':'uncertain'},next_step='Deploy public; pay for the API')['decisions'][0]
+            item=self.screen({**candidate(),'suggested_action':action,'risk_flags':['payment','publish']},next_step='Deploy public; pay for the API')['decisions'][0]
             self.assertEqual(item['suggested_action'],action)
             self.assertEqual(item['status'],action)
             self.assertEqual(item['validation_status'],'valid')

@@ -197,7 +197,7 @@ class DecisionService:
                 old=json.loads(prior['candidate_json'])
                 if candidate_content(old)!=candidate_content(candidate) and material_change(old,candidate):
                     confirmation=None
-            policy=route(candidate,ev,confirmation,next_step=request['next_step'])
+            policy=route(candidate,ev,confirmation)
             with store.connect() as db:
                 recalled=memory.match_candidate(store,db,candidate,task['id']) if request.get('session_handle') else None
             if recalled and recalled['status']=='applicable' and ev['applicable_constraint']:
@@ -208,7 +208,7 @@ class DecisionService:
             reused=False
             if recalled and not confirmation and policy['validation_status']=='valid':
                 if (recalled['status']=='applicable' and candidate.get('memory_intent')=='reuse'
-                        and candidate.get('suggested_action') in (None,'PROCEED')):
+                        and candidate['suggested_action']=='PROCEED'):
                     policy.update(status='PROCEED',reason_codes=['LLM_REQUESTED_PROJECT_RULE_REUSE'])
                     reused=True
                 elif (candidate.get('memory_intent')=='reuse' and candidate.get('suggested_action')=='PROCEED'
@@ -231,7 +231,7 @@ class DecisionService:
                 card_candidate=dict(candidate)
                 card_candidate['options']=card_options
                 card_candidate['depends_on']=candidate.get('depends_on') or [request['next_step']]
-                result['card']=make_card(ident,revision,card_candidate,policy)
+                result['card']=make_card(ident,revision,card_candidate)
             store.write_item(task['id'],key,candidate,result,prior)
             decisions.append(validate('Decision',result))
         response={'schema_version':'decision.v3','task_id':task['id'],'binding_status':task['binding_status'],

@@ -105,7 +105,7 @@ class MemoryTests(unittest.TestCase):
         with self.store.connect() as db:
             current=memory.records(self.store,db,entry['expires_at']+100)[0]
             self.assertEqual((current['tier'],current['state'],current['expires_at']),('rule','active',None))
-        service,request,response=self.new_screen()
+        service,request,response=self.new_screen({**rule_candidate(),'suggested_action':'PROCEED'})
         decision=response['decisions'][0]
         self.assertEqual((decision['status'],decision['confirmation_status']),('PROCEED','project_rule_reused'))
         status=service.status(response['task_id'],request['session_handle'])
@@ -189,7 +189,7 @@ class MemoryTests(unittest.TestCase):
         cand=rule_candidate();cand['options'][0]['value']='review';cand['options'][1]['value']='auto'
         _,_,_,entry=self.confirm(cand=cand);self.command('长期记住',entry)
         cand=deepcopy(cand);cand['options'][0]['id']='B';cand['options'][1]['id']='A'
-        decision=self.new_screen(cand)[2]['decisions'][0]
+        decision=self.new_screen({**cand,'suggested_action':'PROCEED'})[2]['decisions'][0]
         self.assertEqual(decision['status'],'PROCEED')
         self.assertEqual(decision['memory']['choice_id'],'B')
 
@@ -205,7 +205,7 @@ class MemoryTests(unittest.TestCase):
 
     def test_forgetting_invalidates_cached_and_live_reused_status(self):
         _,_,_,entry=self.confirm();self.command('长期记住',entry)
-        service,req,res=self.new_screen()
+        service,req,res=self.new_screen({**rule_candidate(),'suggested_action':'PROCEED'})
         self.assertEqual(service.screen(req),res)
         self.command('遗忘',entry,session='chat-3')
         with self.assertRaisesRegex(ValueError,'CACHED_SCREEN_STALE'):service.screen(req)
@@ -250,7 +250,7 @@ class MemoryTests(unittest.TestCase):
         ledger=Ledger(self.workspace);audit=ledger.start('Fixture','Current matching source')
         source=ledger.read(audit['id'],'current.json')
         cand=rule_candidate();cand['evidence_refs']=[{'source_id':source['id'],'pointer':'/chosen','relation':'constraint'}]
-        service,req,res=self.new_screen(cand)
+        service,req,res=self.new_screen({**cand,'suggested_action':'PROCEED'})
         self.assertEqual(res['decisions'][0]['confirmation_status'],'project_rule_reused')
         path.write_text('Changed',encoding='utf-8')
         self.assertEqual(service.status(res['task_id'],req['session_handle'])['decisions'][0]['confirmation_status'],'project_rule_stale')

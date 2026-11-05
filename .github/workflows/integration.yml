@@ -42,6 +42,8 @@ jobs:
         run: python -m unittest discover -s checks -p test_context_workflow.py -v
       - name: Direct instructions, scoped revisions and document recovery
         run: python -m unittest discover -s checks -p test_instruction_record.py -v
+      - name: Tool profiles, single contract and legacy record reads
+        run: python -m unittest discover -s checks -p test_tool_surfaces.py -v
 
   offline-and-browser:
     name: Unit, MCP, packaging and browser behavior

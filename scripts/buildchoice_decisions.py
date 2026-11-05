@@ -12,7 +12,7 @@ from buildchoice.desktop.decision_settings import read,update
 if __name__=='__main__':
     sys.stdout.reconfigure(encoding='utf-8')
     parser=argparse.ArgumentParser()
-    parser.add_argument('command',choices=['settings','pilot','off','migrate','rollback'])
+    parser.add_argument('command',choices=['settings','pilot','off','core','full','migrate','rollback'])
     parser.add_argument('--workspace',type=Path)
     parser.add_argument('--data-home',type=Path)
     parser.add_argument('--config',type=Path)
@@ -23,6 +23,7 @@ if __name__=='__main__':
     def current():return read(config) if config else read()
     if args.command=='settings':result=current()
     elif args.command in ('pilot','off'):result=update(mode=args.command,**({'path':config} if config else {}))
+    elif args.command in ('core','full'):result=update(tool_profile=args.command,**({'path':config} if config else {}))
     else:
         from buildchoice.desktop.migration import migrate_decision_database,rollback_decision_database
         if args.command=='rollback' and current()['mode']!='off':raise ValueError('Turn V3 off and stop its sessions before rollback')

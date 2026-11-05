@@ -1,5 +1,9 @@
 # BuildChoice · 安装与更新
 
+更新后重新连接 MCP。未配置 tool_profile 的项目使用日常工具集；需要独立审计或高级功能时，在原生设置切换“工具集：完整”，或执行 `python scripts/buildchoice_decisions.py full`。这不修改既有决定与确认历史。
+
+自定义 MCP 调用方应按当前工具 Schema 提交候选，明确提供 suggested_action；不再提交 needs_user_choice、current_dependency、relevance、engineering_detail 或 why_user_choice。已有 SQLite 记录保持可读，重新提交或修订时使用当前字段。插件与运行时应一并更新，避免使用旧 Skill 生成已退出的字段。
+
 ## 从源码安装
 
 需要 Python 3.11+、Git 和支持本地插件的 Codex。先准备已有项目目录，然后在 BuildChoice 仓库根目录执行：

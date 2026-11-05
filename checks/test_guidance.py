@@ -25,7 +25,7 @@ from buildchoice.desktop.decision_store import DecisionStore
 def candidate():
     return {'candidate_id': 'visibility', 'field': 'Profile visibility', 'category': 'access_control',
         'question': 'Who can see a profile?', 'impact': 'Changes who can read the profile.',
-        'why_user_choice': 'Product access rule.', 'needs_user_choice': 'yes', 'current_dependency': 'yes',
+        'suggested_action':'ASK_NOW',
         'risk_flags': ['privacy'], 'evidence_refs': [],
         'options': [{'id': 'A', 'label': 'Private', 'tradeoff': 'Only the owner can read it.'},
                     {'id': 'B', 'label': 'Shared', 'tradeoff': 'People with a link can read it.'}],
@@ -271,17 +271,19 @@ class GuidanceTests(unittest.TestCase):
         resumed=self.service.activate(separate['task_id'],second['decision_id'],1,'second')
         self.assertEqual(resumed['card']['question'],second['card']['question'])
 
-    def test_four_routes_use_evidence_and_dependency(self):
+    def test_routes_require_explicit_action_and_independent_evidence(self):
         self.assertEqual(route(candidate(),{})['status'],'ASK_NOW')
         self.assertEqual(route(candidate(),{'unread':True})['status'],'INSPECT')
-        self.assertEqual(route({**candidate(),'current_dependency':'no'},{})['status'],'DEFER')
-        self.assertEqual(route({**candidate(),'risk_flags':[],'engineering_detail':True},{})['status'],'PROCEED')
+        self.assertEqual(route({**candidate(),'suggested_action':'DEFER'},{})['status'],'DEFER')
+        self.assertEqual(route({**candidate(),'suggested_action':'PROCEED'},{})['status'],'PROCEED')
+        missing=candidate();missing.pop('suggested_action')
+        with self.assertRaisesRegex(ValueError,'suggested_action'):route(missing,{})
 
     def test_legacy_model_configuration_is_read_without_model_capability(self):
         legacy={'config_version':1,'mode':'pilot','model_check':'on','context_ttl_seconds':900,
             'model_runtime':{'python':'retired','root':'retired','config':'retired'}}
         self.settings.write_text(json.dumps(legacy),encoding='utf-8')
-        self.assertEqual(read(self.settings),{'config_version':2,'mode':'pilot','context_ttl_seconds':900})
+        self.assertEqual(read(self.settings),{'config_version':2,'mode':'pilot','context_ttl_seconds':900,'tool_profile':'core'})
         response=self.service.screen(self.request())
         self.assertNotIn('model_fields',response['decisions'][0])
         update('off',self.settings)

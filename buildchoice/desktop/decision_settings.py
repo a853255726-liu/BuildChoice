@@ -6,7 +6,7 @@ from pathlib import Path
 from .common import ROOT
 
 SETTINGS = Path(os.environ.get('BUILDCHOICE_V3_SETTINGS', ROOT / 'configs/decision_v3.json'))
-DEFAULT = {'config_version': 2, 'mode': 'off', 'context_ttl_seconds': 900}
+DEFAULT = {'config_version': 2, 'mode': 'off', 'context_ttl_seconds': 900, 'tool_profile':'core'}
 
 
 def read(path=SETTINGS):
@@ -15,18 +15,21 @@ def read(path=SETTINGS):
     if value.get('config_version') == 1:
         if set(value) != {'config_version', 'mode', 'model_check', 'context_ttl_seconds', 'model_runtime'}:
             raise ValueError('Invalid legacy V3 settings')
-        value = {key: value[key] for key in DEFAULT}
+        value = {key: value[key] for key in ('config_version','mode','context_ttl_seconds')}
         value['config_version'] = 2
+    value.setdefault('tool_profile','core')
     if (set(value) != set(DEFAULT) or type(value['config_version']) is not int or value['config_version'] != 2 or
-            value['mode'] not in ('off', 'pilot') or type(value['context_ttl_seconds']) is not int or
+            value['mode'] not in ('off', 'pilot') or value['tool_profile'] not in ('core','full') or type(value['context_ttl_seconds']) is not int or
             not 60 <= value['context_ttl_seconds'] <= 3600):
         raise ValueError('Invalid V3 settings')
     return value
 
 
-def update(mode=None, path=SETTINGS):
+def update(mode=None, path=SETTINGS, tool_profile=None):
     value = read(path)
     if mode is not None: value['mode'] = mode
+    if tool_profile is not None:value['tool_profile']=tool_profile
+    if value['tool_profile'] not in ('core','full'):raise ValueError('Unknown tool profile')
     if value['mode'] not in ('off', 'pilot'):
         raise ValueError('Unknown V3 setting')
     path = Path(path)

@@ -26,7 +26,7 @@ workspace.mkdir()
 settings=workspace/'settings.json'
 settings.write_text('{"config_version":1,"mode":"prompt"}',encoding='utf-8')
 decisions=workspace/'decision_v3.json'
-decisions.write_text('{"config_version":2,"mode":"pilot","context_ttl_seconds":900}',encoding='utf-8')
+decisions.write_text('{"config_version":2,"mode":"pilot","context_ttl_seconds":900,"tool_profile":"full"}',encoding='utf-8')
 env={**os.environ,'BUILDCHOICE_WORKSPACE':str(workspace),'BUILDCHOICE_V3_SETTINGS':str(decisions),
      'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
 log=(workspace/'server.stderr.log').open('w',encoding='utf-8')

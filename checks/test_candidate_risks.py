@@ -85,7 +85,7 @@ class CandidateRiskTests(unittest.TestCase):
 
     def test_natural_language_claim_is_interpretation_not_a_literal_constraint(self):
         src=self.source('requirements.md','Prefer a simple and safe workflow.')
-        value=deepcopy(self.candidate);value.update(engineering_detail=True,needs_user_choice='no')
+        value=deepcopy(self.candidate);value.update(suggested_action='PROCEED')
         value['evidence_refs']=[{'source_id':src['id'],'quote':'Prefer a simple and safe workflow.',
             'relation':'constraint','interpretation':'The user already approved automatic saving.'}]
         evidence=self.service.evidence(self.store,value,[])
@@ -109,19 +109,19 @@ class CandidateRiskTests(unittest.TestCase):
         self.assertFalse(self.service.evidence(self.store,value,[])['conflict'])
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'ASK_NOW')
 
-    def test_product_engineering_tradeoff_does_not_hide_behind_engineering_detail(self):
-        value={**self.candidate,'category':'engineering','engineering_detail':True,'needs_user_choice':'no',
+    def test_product_engineering_tradeoff_uses_explicit_model_action(self):
+        value={**self.candidate,'category':'engineering',
             'engineering_risks':[engineering()],'suggested_action':'ASK_NOW'}
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'ASK_NOW')
-        value.update(current_dependency='no',suggested_action='DEFER')
+        value.update(suggested_action='DEFER')
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'DEFER')
 
     def test_ordinary_or_irrelevant_engineering_risks_do_not_force_questions(self):
-        value={**self.candidate,'engineering_detail':True,'needs_user_choice':'no','engineering_risks':[engineering('no','low')]}
+        value={**self.candidate,'suggested_action':'PROCEED','engineering_risks':[engineering('no','low')]}
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'PROCEED')
-        value['engineering_risks']=[engineering()];value['relevance']='no'
+        value['engineering_risks']=[engineering()]
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'PROCEED')
-        value.update(relevance='yes',risk_flags=['payment'],suggested_action='ASK_NOW')
+        value.update(risk_flags=['payment'],suggested_action='ASK_NOW')
         self.assertEqual(self.screen(value)[0]['decisions'][0]['status'],'ASK_NOW')
 
     def test_keyword_signal_does_not_invent_a_business_decision(self):
@@ -138,7 +138,7 @@ class CandidateRiskTests(unittest.TestCase):
         self.assertTrue(result['risk_review']['no_signal_does_not_establish_no_risk'])
 
     def test_uncertain_product_impact_or_unread_resources_are_inspected_without_forcing_a_card(self):
-        value={**self.candidate,'engineering_detail':True,'needs_user_choice':'no','engineering_risks':[engineering('uncertain')],'suggested_action':'INSPECT'}
+        value={**self.candidate,'engineering_risks':[engineering('uncertain')],'suggested_action':'INSPECT'}
         result,_,_=self.screen(value)
         self.assertEqual(result['decisions'][0]['status'],'INSPECT')
         self.assertIsNone(result['decisions'][0]['card'])
@@ -229,7 +229,7 @@ class CandidateRiskTests(unittest.TestCase):
 
     def test_risk_annotations_do_not_break_cross_chat_keyed_rule_reuse(self):
         value=keyed_candidate(self.f);_,_,entry,_=confirm_rule(self.f,value)
-        changed=deepcopy(value);changed['options'][0].update(warning())
+        changed=deepcopy(value);changed.update(suggested_action='PROCEED');changed['options'][0].update(warning())
         item=keyed_screen(self.f,changed)[3]
         self.assertEqual(item['confirmation_status'],'project_rule_reused')
         self.assertEqual(item['memory']['source_confirmation_id'],entry['confirmation_id'])

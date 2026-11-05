@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 from buildchoice.desktop.common import ROOT, file_sha
 
-VERSION = '0.12.0'
+VERSION = '0.13.0'
 
 
 def build_core_runtime(destination, root=ROOT):
@@ -25,7 +25,7 @@ def build_core_runtime(destination, root=ROOT):
     names.update('docs/contracts/'+name for name in ('acceptance-v1.schema.json','verification-v1.schema.json'))
     data = {name: (root/name).read_bytes() for name in sorted(names)}
     data['configs/buildchoice.json'] = json.dumps({'config_version':1,'mode':'prompt'}).encode()
-    data['configs/decision_v3.json'] = json.dumps({'config_version':2,'mode':'off','context_ttl_seconds':900}).encode()
+    data['configs/decision_v3.json'] = json.dumps({'config_version':2,'mode':'off','context_ttl_seconds':900,'tool_profile':'core'}).encode()
     index = {'bundle_version':1,'package_version':VERSION,'profile':'prompt-first-core',
              'files':{n:{'sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b)} for n,b in data.items()}}
     destination.parent.mkdir(parents=True, exist_ok=True)

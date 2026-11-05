@@ -36,7 +36,7 @@ class DiscoveryAssetTests(unittest.TestCase):
             for candidate in c["expected_candidates"]:
                 self.assertTrue(candidate["field"].strip())
                 self.assertTrue(candidate["impact"].strip())
-                self.assertTrue(candidate["why_user_choice"].strip())
+                self.assertTrue(candidate["impact"].strip())
                 self.assertNotIn("不同选择会改变当前产品的访问、行为或交付范围", candidate["impact"])
                 options = candidate["options"]
                 self.assertIn(len(options), (2, 3))
@@ -54,16 +54,16 @@ class DiscoveryAssetTests(unittest.TestCase):
                 len(variants["missing"]["expected_candidates"]),
                 len(variants["future"]["expected_candidates"]))
             for c in variants["future"]["expected_candidates"]:
-                self.assertEqual(c["current_dependency"], "no")
+                self.assertEqual(c["suggested_action"], "DEFER")
 
     def test_acceptance_instruction_explicitly_limits_self_verification(self):
         skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
         guidance = (REFERENCE / "scenario-probes.md").read_text(encoding="utf-8")
-        self.assertIn("代码关联是可选功能", skill)
-        self.assertIn("使用 Codex 原生能力", skill)
-        self.assertIn("不要求准备 BuildChoice 验收集合", skill)
+        self.assertIn("仅在确有需求时使用完整工具集", skill)
+        self.assertIn("Codex 原生能力", skill)
+        self.assertIn("不默认创建验收集合", skill)
         self.assertIn("独立认证", skill)
-        self.assertIn("current_pass=true", skill)
+        self.assertIn("用户明确要求", skill)
         self.assertIn("不得标为通过", guidance)
 
 
