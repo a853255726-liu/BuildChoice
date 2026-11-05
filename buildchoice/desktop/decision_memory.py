@@ -169,7 +169,7 @@ def records(store, db, clock=None):
         ON i.id=c.decision_id AND i.revision=c.revision
         JOIN decision_v3_tasks t ON t.id=i.task_id
         WHERE t.workspace=? AND t.binding_status='hook_observed'
-        AND c.provenance IN ('user_message_observed','llm_interpreted_user_reply')
+        AND c.provenance IN ('user_message_observed','llm_interpreted_user_reply','llm_interpreted_user_instruction')
         ORDER BY c.created, c.id''', (str(store.workspace),)).fetchall()
     latest = {r['id']: r['revision'] for r in db.execute('''SELECT i.id, max(i.revision) AS revision
         FROM decision_v3_items i JOIN decision_v3_tasks t ON t.id=i.task_id

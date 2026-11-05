@@ -156,6 +156,8 @@ def build(service, store, handle, query='', paths=None, task_id=None, since=None
         'decisions':[],'sources':[],'memory':[],'changes':[],'omitted':{},
         'management_request':json.loads(ctx['outcome_json']).get('_memory_request'),
         'semantic_judgment_by':'llm','does_not_authorize_host_operations':True}
+    from .document_projection import status as projection_status
+    result['document']=projection_status(service,store,handle)
     reply=json.loads(ctx['outcome_json']).get('_reply')
     if reply and json.loads(ctx['outcome_json']).get('confirmation_status')=='awaiting_user':
         result['pending_reply']={k:reply[k] for k in ('decision_id','revision','message_digest')}

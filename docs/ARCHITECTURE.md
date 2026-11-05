@@ -62,6 +62,10 @@ audit.v1 包含 sessions、sources、decisions、reviews、events；V3 使用独
 
 可直接解析的真实卡片回复记录 user_message_observed。复杂回复由 LLM 提交实际本轮原话与解释，程序核对当前消息、卡片、选项、版本和有效期，记录 llm_interpreted_user_reply、semantic_verified_by_program=false。无真实消息的 Agent 自述不能创建确认。仅待解释的当前回复在内部保存必要原文，不保存完整聊天。
 
+明确的新指令使用独立的 instruction.v1 请求，不要求激活卡片。程序以 Hook 的本轮消息哈希核对完整原话，再检查精确引用、任务归属、预期版本和幂等键；保存 llm_interpreted_user_instruction 与引用片段，语义和范围解释由 LLM 负责。已确认相同选择仅追加来源事件；变化追加版本，未激活的提案也可由真实指令选择，不补造卡片交付。
+
+指令事务同时保存文档投影待办。提交后在写锁下重新生成当前已确认项目记录，以临时文件加原子替换发布；失败保留 pending，重试不会再次生成决定版本。SQLite 是状态依据，文件同步状态单独返回。context 可发现文件缺失、修改或后续账本变化；同名手写文件不会被覆盖。附加表按需创建，旧 SQLite 与原确认表保持兼容。
+
 上下文查询聚合任务、记忆、来源和恢复建议，部分/过期读取不提升为完整有效来源。快照按工作区和宿主聊天隔离，保存哈希与状态，不复制文件正文；快照字面变化不判定业务影响。重复激活当前卡不续期、重复回复解释不新增确认，暂缓项不自动重新询问。
 
 ## 实现关联
@@ -82,11 +86,11 @@ Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用
 
 | 标识 | 用途 |
 |---|---|
-| 0.11.1 | 产品发布版本，写入插件元数据和分发包名称 |
+| 0.12.0 | 产品发布版本，写入插件元数据和分发包名称 |
 | V3 / decision.v3 | 决策卡流程及其数据契约，与产品版本分别演进 |
 | audit.v1 | 文件来源、引用与兼容审计记录格式 |
 | memory.v1 | 项目决策记忆的查询结果格式 |
 | context.v1 / decision-document.v1 | 上下文与可读决策文档结果格式 |
-| candidate-extractor-v3.9 | Agent 候选提取指引版本 |
+| candidate-extractor-v4.0 | Agent 候选提取指引版本 |
 
 .claude-plugin/marketplace.json 是当前安装器使用的本地市场兼容布局；plugins/buildchoice/.codex-plugin/plugin.json 是 Codex 插件清单。安装器在独立数据目录生成插件副本和市场文件；源码内的文件用作模板。install_local.py 通过 openai_codex SDK 调用 Codex app-server 的 plugin/install 和 plugin/read；目录名称不代表运行了 Claude 服务。

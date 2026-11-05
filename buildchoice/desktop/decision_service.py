@@ -360,6 +360,10 @@ class DecisionService:
         store=self.store();task=store.task(task_id,self.owner,session_handle)
         return interpret(store,task,self.owner,session_handle,decision_id,revision,choice_id,quote,reason)
 
+    def record_instruction(self, request):
+        from .instruction_record import record
+        return record(self,self.store(),request)
+
     def context_bundle(self, session_handle, query='', paths=None, task_id=None, since=None, max_chars=12000):
         from .task_context import build
         return build(self,self.store(),session_handle,query,paths or [],task_id,since,max_chars)

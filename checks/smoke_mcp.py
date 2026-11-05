@@ -71,11 +71,14 @@ try:
     assert init['serverInfo']['name']=='buildchoice'
     send('notifications/initialized',notify=True)
     listed={t['name']:t for t in send('tools/list',{})['tools']};names=set(listed)
-    assert len(names)==19,names
+    assert len(names)==20,names
     from jsonschema import Draft202012Validator
     schema=listed['buildchoice_screen_candidates']['inputSchema'];Draft202012Validator.check_schema(schema)
     assert 'suggested_action' in schema['$defs']['Candidate']['required']
     assert 'phase' not in schema['$defs']['ScreenRequest']['properties']
+    instruction_schema=listed['buildchoice_record_instruction']['inputSchema']
+    Draft202012Validator.check_schema(instruction_schema)
+    assert 'user_message' in instruction_schema['$defs']['InstructionRequest']['required']
     assert schema['$defs']['Candidate']['properties']['suggested_action']['enum']==['ASK_NOW','INSPECT','DEFER','PROCEED']
     assert not names & {'buildchoice_evaluate','buildchoice_assess_snapshot','buildchoice_get_status','buildchoice_set_auto_call'}
     native=call('buildchoice_settings_read',{})
@@ -243,6 +246,39 @@ try:
         'buildchoice_decision_document':{'session_handle':natural},
         'buildchoice_reply_interpret':{**natural_args,'choice_id':'A','quote':'采用私密方案','reason':'Existing reply'}}
 
+    # Clear instructions do not depend on activation or a pending-card reply.
+    direct_text='普通和旅行账本都自动入账，之后可以修改识别字段。'
+    direct_handle=memory_hook(direct_text,'1','instruction-smoke')
+    direct_request={'session_handle':direct_handle,'user_message':direct_text,'quote':'都自动入账',
+        'reason':'用户明确要求两类账本自动入账','idempotency_key':'direct','expected_revision':0,
+        'decision':{'decision_key':'receipt.saving','field':'入账方式','choice':{
+            'label':'两类账本自动入账','value':{'ordinary':'auto','travel':'auto'}}}}
+    direct=call('buildchoice_record_instruction',{'request':direct_request})
+    assert direct['recorded'] and direct['document']['status']=='synchronized'
+    assert direct['source']['provenance']=='llm_interpreted_user_instruction'
+    assert not direct['semantic_verified_by_program']
+    assert call('buildchoice_record_instruction',{'request':direct_request})['replayed']
+    assert send('tools/call',{'name':'buildchoice_record_instruction','arguments':{
+        'request':{**direct_request,'user_message':'伪造指令'}}}).get('isError')
+    direct_text='只对旅行账本恢复核对后保存，普通账本仍自动入账。'
+    direct_handle=memory_hook(direct_text,'2','instruction-smoke')
+    direct_request={**direct_request,'session_handle':direct_handle,'user_message':direct_text,'quote':'只对旅行账本恢复核对后保存',
+        'decision_id':direct['decision_id'],'expected_revision':1,'idempotency_key':'direct-revision',
+        'decision':{**direct_request['decision'],'choice':{'label':'普通自动，旅行核对','value':{'ordinary':'auto','travel':'review'}}}}
+    revised=call('buildchoice_record_instruction',{'request':direct_request})
+    assert revised['revision']==2 and revised['document']['status']=='synchronized'
+    assert send('tools/call',{'name':'buildchoice_record_instruction','arguments':{
+        'request':{**direct_request,'expected_revision':9,'idempotency_key':'stale'}}}).get('isError')
+    direct_handle=memory_hook('确认刚才的范围。','3','instruction-smoke')
+    reaffirm={k:v for k,v in direct_request.items() if k not in ('decision','quote')}
+    reaffirm.update(session_handle=direct_handle,user_message='确认刚才的范围。',expected_revision=2,idempotency_key='reaffirm')
+    assert call('buildchoice_record_instruction',{'request':reaffirm})['unchanged']
+    fresh_instruction=memory_hook('继续项目','1','instruction-fresh')
+    recovered=call('buildchoice_context',{'session_handle':fresh_instruction,'query':'入账方式'})
+    assert recovered['document']['status']=='synchronized'
+    assert any(r['choice']['value']=={'ordinary':'auto','travel':'review'} for r in recovered['memory'])
+    new_tool_args['buildchoice_record_instruction']={'request':reaffirm}
+
     call('buildchoice_settings_update',{'set':{'mode':'完全关闭'}})
     names={t['name'] for t in send('tools/list',{})['tools']}
     assert names=={'buildchoice_settings_read','buildchoice_settings_update','buildchoice_settings_status','buildchoice_decision_status'},names
@@ -263,7 +299,7 @@ try:
     for tool in ('buildchoice_acceptance_prepare','buildchoice_verify_decision'):
         blocked=send('tools/call',{'name':tool,'arguments':({**arguments,'criteria':conditions['criteria'],'idempotency_key':'pilot-off'} if tool.endswith('prepare') else verify_args)})
         assert blocked.get('isError'),blocked
-    print('PASS actual MCP: advertised contracts, 19 tools, reusable context, resume, direct/LLM-bound replies, protected decision document, memory, explicit verification and off/pilot-off behavior')
+    print('PASS actual MCP: advertised contracts, 20 tools, reusable context, resume, direct/LLM-bound replies, protected decision document, memory, explicit verification and off/pilot-off behavior')
 finally:
     process.stdin.close()
     try:process.wait(timeout=5)

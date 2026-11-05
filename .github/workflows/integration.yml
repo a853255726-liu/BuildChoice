@@ -40,6 +40,8 @@ jobs:
         run: python -m unittest discover -s checks -p test_candidate_risks.py -v
       - name: Role separation, reusable context, resume and decision documents
         run: python -m unittest discover -s checks -p test_context_workflow.py -v
+      - name: Direct instructions, scoped revisions and document recovery
+        run: python -m unittest discover -s checks -p test_instruction_record.py -v
 
   offline-and-browser:
     name: Unit, MCP, packaging and browser behavior

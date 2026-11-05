@@ -6,14 +6,14 @@ LLM 通过 `suggested_action` 提交业务处理建议，程序返回独立的 `
 
 ## 连接与可用工具
 
-安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 19 个工具：
+安装器绑定目标工作区、Python 和运行时。启用原生设置与决策卡时提供 20 个工具：
 
 | 分组 | 工具 |
 |---|---|
 | 设置 | buildchoice_settings_read、buildchoice_settings_update、buildchoice_settings_status |
 | 文件证据与审计 | buildchoice_audit_start、buildchoice_audit_read、buildchoice_audit_decision、buildchoice_audit_report |
 | 决策 | buildchoice_screen_candidates、buildchoice_card_activate、buildchoice_decision_status、buildchoice_decision_prepare_revision |
-| 上下文与文档 | buildchoice_context、buildchoice_reply_interpret、buildchoice_decision_document |
+| 上下文与文档 | buildchoice_context、buildchoice_reply_interpret、buildchoice_record_instruction、buildchoice_decision_document |
 | 实现与验证 | buildchoice_link_implementation、buildchoice_acceptance_prepare、buildchoice_verify_decision |
 | 项目记忆 | buildchoice_memory、buildchoice_memory_manage |
 
@@ -82,7 +82,15 @@ Decision 可包含记忆匹配来源。project_rule_reused 不等于本任务的
 
 ## 决策文档
 
+用户已明确指定或修改选择时，使用 `buildchoice_record_instruction(request)`，无需先发卡。request 包含本轮完整 user_message、精确 quote、解释 reason、session_handle、idempotency_key 和 expected_revision。新决定使用 expected_revision=0，并提供 decision：decision_key、field 和单个 choice（label/value 必填），scope_key/conditions 可指定范围。修订额外提供 decision_id 和当前 expected_revision；相同取值、行为与范围保留版本。再次确认现有决定时省略 decision/choice_id；回答已有提案可传 choice_id。工具 Schema 提供完整字段约束。
+
+程序核对真实消息哈希、引用、归属、当前版本和幂等性，来源单独记为 llm_interpreted_user_instruction，semantic_verified_by_program=false。业务含义由 LLM 判断；问句、假设、否定及他人引语不能因为引用真实就视作决定。不会自动升级为长期规则或授予执行权限。原卡片回复接口继续要求实际待答卡，不接受伪造卡片交付。
+
+账本与文档采用可恢复同步：先在单一事务中保存选择和文档待办，再原子替换生成文件。recorded=true 表示账本已提交，document.status=synchronized 才表示文件同步完成；pending 保留补写待办，重试原请求或调用 decision_document(write=true) 可恢复，不重复创建版本。旧回执带 latest_revision/current，不会恢复旧选择。默认生成 BUILDCHOICE_DECISIONS.md；同名手写文件保留，另选 .generated.md 等文件并返回路径。context.document 显示当前同步状态。
+
 `buildchoice_decision_document(session_handle, task_id=null, include_archived=false, write=false, path="BUILDCHOICE_DECISIONS.md")` 返回 Markdown 与结构化决策、范围、来源和字面修订差异。默认展示项目当前参考与当前聊天任务；task_id 需属于当前聊天。默认预览，write=true 才原子写入项目 Markdown，路径的父目录须已存在。
+
+指令记账建立的规范生成文件汇总项目当前已确认记录；向该路径写入时补齐最新投影。包含历史或仅单个任务的导出需另选路径，避免覆盖项目总记录。待办仍从 context 查询。新聊天可读取项目记忆和生成文档，不可直接修订其他聊天的任务；跨聊天参考不会自动成为本聊天的新授权。
 
 只能覆盖带 BuildChoice 生成标记的文档；已有手写文件、私有路径、链接及越界路径拒绝。写文档不改变账本或规则。当前来源待复核项仍展示原选择，归档/遗忘/被替代项默认隐藏。详见[上下文与恢复](CONTEXT_WORKFLOW.md)。
 

@@ -51,9 +51,20 @@ def destination(store, relative):
     return target
 
 
-def document(service, store, handle, task_id=None, include_archived=False, write=False, path='BUILDCHOICE_DECISIONS.md'):
+def document(service, store, handle, task_id=None, include_archived=False, write=False, path='BUILDCHOICE_DECISIONS.md', confirmed_only=False):
     if type(include_archived) is not bool or type(write) is not bool:raise ValueError('Boolean flags required')
     ctx=authorize(service,store,handle,task_id)
+    if write and not confirmed_only:
+        with store.connect() as db:
+            exists=db.execute("SELECT 1 FROM sqlite_master WHERE name='decision_v3_document_jobs'").fetchone()
+            job=db.execute('SELECT path FROM decision_v3_document_jobs WHERE workspace=?',(str(store.workspace),)).fetchone() if exists else None
+        if job and path in (job['path'],'BUILDCHOICE_DECISIONS.md'):
+            if task_id or include_archived:raise ValueError('Use a separate path for task-specific or archived exports')
+            from .document_projection import publish
+            sync=publish(service,store,handle)
+            result=document(service,store,handle,confirmed_only=True)
+            result.update(written=sync['status']=='synchronized',document=sync,path=sync.get('path'))
+            return result
     with store.connect() as db:entries=memory.records(store,db)
     hidden={(e['decision_id'],e['revision']) for e in entries if e['state'] not in ('active','needs_review')}
     entries=[e for e in entries if include_archived or e['state'] in ('active','needs_review')]
@@ -93,7 +104,7 @@ def document(service, store, handle, task_id=None, include_archived=False, write
             conf=db.execute('SELECT * FROM decision_v3_confirmations WHERE id=?',(entry['confirmation_id'],)).fetchone()
             if row:
                 rows.append(project(row,conf,entry['state']));seen.add((row['id'],row['revision']))
-    for task in host_tasks(store,ctx,task_id):
+    for task in ([] if confirmed_only else host_tasks(store,ctx,task_id)):
         for row in store.items(task['id']):
             if not include_archived and (row['id'],row['revision']) in hidden:continue
             if (row['id'],row['revision']) not in seen:
@@ -115,8 +126,12 @@ def document(service, store, handle, task_id=None, include_archived=False, write
         if item['conditions']:lines+=['- 适用条件：'+'；'.join(item['conditions'])]
         if item['choice']:
             lines+=['- 已选方案：'+item['choice']['label'],'- 方案说明：'+item['choice']['tradeoff']]
+            if 'value' in item['choice']:lines+=['- 实际取值：'+readable(item['choice']['value'])]
+            if 'behavior' in item['choice']:lines+=['- 行为：'+readable(item['choice']['behavior'])]
             provenance=item['confirmation']['provenance']
-            lines+=['- 选择来源：'+('实际用户消息，选项对应由 LLM 解释' if provenance=='llm_interpreted_user_reply' else '实际用户消息中的明确选项回复')]
+            sources={'llm_interpreted_user_reply':'实际用户消息，选项对应由 LLM 解释',
+                'llm_interpreted_user_instruction':'实际用户修改指令，含义与范围由 LLM 解释'}
+            lines+=['- 选择来源：'+sources.get(provenance,'实际用户消息中的明确选项回复')]
         else:lines+=['- 尚无当前版本的用户选择；LLM 建议：'+item['suggested_action']]
         if item['previous_confirmation']:
             lines+=['- 原确认：v'+str(item['previous_confirmation']['revision'])+'，选项 '+item['previous_confirmation']['choice_id']]

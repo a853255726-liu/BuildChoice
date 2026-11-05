@@ -42,14 +42,14 @@ def main():
         tools = await server.list_tools()
         from buildchoice.desktop.decision_contracts import input_schema
         for tool in tools:
-            if tool.name=='buildchoice_screen_candidates':
-                contract=input_schema('ScreenRequest');tool.inputSchema={'type':'object','properties':{'request':{'$ref':contract['$ref']}},'required':['request'],'additionalProperties':False,'$defs':contract['$defs']}
+            if tool.name in ('buildchoice_screen_candidates','buildchoice_record_instruction'):
+                contract=input_schema('ScreenRequest' if tool.name=='buildchoice_screen_candidates' else 'InstructionRequest');tool.inputSchema={'type':'object','properties':{'request':{'$ref':contract['$ref']}},'required':['request'],'additionalProperties':False,'$defs':contract['$defs']}
             elif tool.name=='buildchoice_decision_prepare_revision':
                 contract=input_schema('Candidate');tool.inputSchema['properties']['candidate']={'$ref':contract['$ref']};tool.inputSchema['$defs']=contract['$defs']
         if read_runtime_settings(args.settings)['mode']=='off':
             tools=[t for t in tools if t.name.startswith('buildchoice_settings_') or t.name=='buildchoice_decision_status']
         elif decisions.settings()['mode']=='off':
-            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage','buildchoice_context','buildchoice_reply_interpret','buildchoice_decision_document')]
+            tools=[t for t in tools if t.name not in ('buildchoice_screen_candidates','buildchoice_card_activate','buildchoice_decision_prepare_revision','buildchoice_link_implementation','buildchoice_acceptance_prepare','buildchoice_verify_decision','buildchoice_memory','buildchoice_memory_manage','buildchoice_context','buildchoice_reply_interpret','buildchoice_record_instruction','buildchoice_decision_document')]
         return tools
 
     async def notify_tool_changes():
@@ -150,6 +150,23 @@ def main():
         """
         require_enabled()
         return decisions.interpret_reply(task_id,decision_id,revision,choice_id,quote,reason,session_handle)
+
+    @server.tool(annotations=audit_write,structured_output=True)
+    def buildchoice_record_instruction(request: dict) -> dict[str,Any]:
+        """Record a clear current user instruction or scoped revision without requiring a card.
+        First inspect buildchoice_context for the current decision_id/revision. Pass the full
+        actual user_message (without Hook context), exact quote, reason and current session_handle.
+        For updates supply decision_id and expected_revision; omit decision/choice_id to reaffirm
+        an already recorded choice, or supply one selected decision.choice (no fake alternatives).
+        For a new choice use expected_revision=0 and decision. choice_id may answer an existing proposal.
+        Python verifies message hash, citation, ownership, version and retries, NOT intent or meaning.
+        Only use for clear decisions, not questions, hypotheses or quoted instructions.
+        Returns llm_interpreted_user_instruction, semantic_verified_by_program=false and document
+        synchronization status. Pending document writes are retryable; never directly edit SQLite.
+        This records a choice, never authorizes host execution or promotes a long-term rule.
+        """
+        require_enabled()
+        return decisions.record_instruction(request)
 
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_decision_document(session_handle: str, task_id: str | None = None,

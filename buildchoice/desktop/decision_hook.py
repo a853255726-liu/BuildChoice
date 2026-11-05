@@ -28,10 +28,10 @@ def handle_prompt(event,workspace,settings_path=None):
                  '结合本轮消息和对话上下文判断是否正在实施开发；正则未命中不排除简短修改或承接请求。'
                  '仅实际开发或实施前检查使用 decision-discovery Skill；纯咨询与解释直接回答，句柄本身不要求调用工具或提问。'
                  '需要提取时，在同一次提取中附简短 coverage 依据，不增加第二轮复核；零候选正常继续。'
-                 '已有待答卡先处理回复状态，一次一张卡。'+
+                 '本轮已有明确行为或范围修改时用 buildchoice_record_instruction，不为已确定的选择重复发卡；否则先处理已有待答卡，一次一张。'+
                  '实际开发优先调用 buildchoice_context，一次取得已有选择、待答项与需要的真实资料；避免重复读取。'+
                  '业务分流和自然回复理解由 LLM 负责，程序核对来源与版本；含义明确但仍待答时用 buildchoice_reply_interpret 记录解释。'+
-                 '用户明确要求保存或管理记忆时使用 decision-memory Skill；未提出时不主动询问是否长期保存。'+
+                 '保存实现决定使用指令记账入口；明确要求长期保存或管理记忆时使用 decision-memory Skill，不主动询问是否长期保存。'+
                  ('检测到开发表达提示。' if hint else '')+
                  '用户回复状态：'+observed.get('confirmation_status','none')+'。'+
                  (observed.get('reply_hint','') if observed.get('confirmation_status')=='awaiting_user' else '')+

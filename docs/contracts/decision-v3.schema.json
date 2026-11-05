@@ -1053,6 +1053,158 @@
         "relation",
         "rationale"
       ]
+    },
+    "InstructionChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "tradeoff": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "value": {},
+        "option_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]{1,119}$",
+          "maxLength": 120
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 10
+        },
+        "behavior": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ]
+    },
+    "InstructionDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]{1,119}$",
+          "maxLength": 120
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "category": {
+          "enum": [
+            "business_rule",
+            "access_control",
+            "data_privacy",
+            "cost_external",
+            "scope",
+            "engineering"
+          ]
+        },
+        "scope_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 10
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 20
+        },
+        "choice": {
+          "$ref": "#/$defs/InstructionChoice"
+        }
+      },
+      "required": [
+        "decision_key",
+        "field",
+        "choice"
+      ]
+    },
+    "InstructionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "session_handle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "user_message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50000
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "decision": {
+          "$ref": "#/$defs/InstructionDecision"
+        },
+        "choice_id": {
+          "enum": [
+            "A",
+            "B",
+            "C"
+          ]
+        }
+      },
+      "required": [
+        "session_handle",
+        "user_message",
+        "reason",
+        "expected_revision",
+        "idempotency_key"
+      ]
     }
   },
   "$ref": "#/$defs/ScreenRequest"
