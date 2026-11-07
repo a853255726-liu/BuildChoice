@@ -33,7 +33,10 @@ def validate(kind, value):
         raise ValueError(json.dumps({'code':'INVALID_CONTRACT','field':path,
             'message':error.message[:350],'expected':error.validator_value if error.validator in ('enum','required','type') else error.validator},
             ensure_ascii=False)) from None
-    if kind=='Candidate':validate_options(value['options'],value['recommended_option_id'])
+    if kind=='Candidate':
+        validate_options(value['options'],value['recommended_option_id'])
+        from .decision_content import validate_content
+        validate_content(value)
     if kind=='Card':validate_options(value['options'],value['recommendation']['option_id'] if value['recommendation'] else None)
     if kind == 'ScreenRequest':
         if value.get('suggested_action')=='ASK_NOW' and not value['candidates']:
@@ -49,6 +52,8 @@ def validate(kind, value):
                 raise ValueError('Coverage references an unknown request-local candidate')
         for candidate in value['candidates']:
             validate_options(candidate['options'],candidate['recommended_option_id'])
+            from .decision_content import validate_content
+            validate_content(candidate)
     return value
 
 
@@ -65,6 +70,16 @@ def input_schema(kind):
         for reference in references(SCHEMA['$defs'][pending.pop()]):
             if reference not in needed:needed.add(reference);pending.append(reference)
     definitions={key:deepcopy(SCHEMA['$defs'][key]) for key in sorted(needed)}
+    if 'Candidate' in definitions:
+        # Require the current generation contract in the advertised model input;
+        # persisted V3 history and older integrations remain readable at runtime.
+        definitions['Candidate']['required'] += ['content_version']
+        definitions['Option']['required'] += ['risk_assessment']
+        from .decision_content import LIMITS
+        for name in ('question','impact','recommendation_reason'):
+            definitions['Candidate']['properties'][name]['maxLength']=LIMITS[name]
+        for name in ('label','tradeoff','risk_warning','risk_condition','risk_reason'):
+            definitions['Option']['properties'][name]['maxLength']=LIMITS[name]
     if kind=='ScreenRequest':
         # Stage is archival metadata, not a business judgment or model input requirement.
         definitions[kind]['properties'].pop('phase',None)

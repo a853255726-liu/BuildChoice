@@ -290,6 +290,8 @@ def freshness(store, db, row):
 def execute(service, request):
     request = validate('snapshot', request); action = request['action']; task_id = request['task_id']
     def handler(store, db, ctx):
+        if action == 'inspect':
+            return collect(store,db,task_id,request['scopes'],request.get('excluded_paths',[]),'current_review',None)
         if action == 'capture':
             expectation = ps.get(db, request['expectation_id'], 'expectation', task_id=task_id)
             from .experience import current_reasons
@@ -323,4 +325,6 @@ def execute(service, request):
         end_row = ps.get(db, end['id'])
         return ps.put(store, db, task_id, 'code_comparison', {'baseline_id': baseline['id'], 'end_id': end['id'],
             'expectation_id': baseline['data']['expectation_id'], **differences(store, db, baseline, end_row)})
-    return ps.run(service, request, handler)
+    result=ps.run(service, request, handler)
+    from .product_workflow import progress
+    return {**result,'workflow':progress(service.store(),task_id)}

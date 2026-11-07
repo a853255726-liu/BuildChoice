@@ -28,9 +28,11 @@ class ToolSurfaceTests(unittest.TestCase):
         self.assertEqual(read(f.settings)['tool_profile'],'full')
         with self.assertRaises(ValueError):update(tool_profile='anything',path=f.settings)
 
-    def test_advertised_and_enforced_candidate_contract_are_identical(self):
+    def test_new_generation_contract_is_stricter_than_legacy_storage_reads(self):
         schema=input_schema('ScreenRequest')
-        self.assertEqual(schema['$defs']['Candidate'],SCHEMA['$defs']['Candidate'])
+        self.assertEqual(set(schema['$defs']['Candidate']['properties']),set(SCHEMA['$defs']['Candidate']['properties']))
+        self.assertIn('content_version',schema['$defs']['Candidate']['required'])
+        self.assertIn('risk_assessment',schema['$defs']['Option']['required'])
         minimal={k:v for k,v in candidate().items() if k in SCHEMA['$defs']['Candidate']['required']}
         self.assertEqual(len(minimal),7)
         validate('Candidate',minimal)

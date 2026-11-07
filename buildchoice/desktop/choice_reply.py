@@ -1,5 +1,6 @@
 """Resolve clear whole-message choices against the single active card."""
 import re
+import json
 import unicodedata
 
 
@@ -8,6 +9,8 @@ def normalized(value):
 
 
 def parse_choice(prompt,card):
+    if prompt.strip().startswith('<send_user_message_question_reply>'):
+        return parse_native_choice(prompt,card)
     if len(prompt)>500:return None
     text=normalized(prompt)
     display=card['display_id'].casefold()
@@ -34,4 +37,51 @@ def parse_choice(prompt,card):
             recommendation=card.get('recommendation')
             if recommendation:matches.add(recommendation['option_id'])
     if len(matches)==1:return {'choice_id':matches.pop(),'method':'explicit_option_expression'}
+    return None
+
+
+def parse_native_choice(prompt, card):
+    """Called only for a prompt already observed by the trusted UserPromptSubmit Hook.
+
+    This parser cannot create a context from an assistant-supplied UI receipt. It accepts
+    only an exact single-card question/answer expression, never custom text or batches.
+    """
+    if len(prompt) > 8000 or 'question' not in card:
+        return None
+    text = prompt.strip()
+    start, end = '<send_user_message_question_reply>', '</send_user_message_question_reply>'
+    if not text.endswith(end):
+        return None
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('Duplicate field')
+            result[key] = value
+        return result
+
+    try:
+        items = json.loads(text[len(start):-len(end)].strip(), object_pairs_hook=unique_object)
+        if not isinstance(items, list) or len(items) != 1:
+            return None
+        item = items[0]
+        if (not isinstance(item, dict) or set(item) != {'questionItemId', 'question', 'answer'}
+                or any(not isinstance(value, str) for value in item.values())
+                or item['question'] != card['question'].strip()):
+            return None
+        identity = json.loads(item['questionItemId'])
+        if (not isinstance(identity, list) or len(identity) != 3
+                or identity[0] != 'request_user_input_async'
+                or not isinstance(identity[1], str)
+                or not re.fullmatch(r'call_[A-Za-z0-9_-]{1,120}', identity[1])
+                or type(identity[2]) is not int or identity[2] != 0):
+            return None
+        from .conversation_ui import option_text
+        matches = [option['id'] for option in card['options']
+                   if item['answer'] == option_text(card, option, numbered=False)]
+        if len(matches) == 1:
+            return {'choice_id': matches[0], 'method': 'explicit_native_option_expression'}
+    except (ValueError, TypeError, KeyError):
+        pass
     return None

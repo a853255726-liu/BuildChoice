@@ -62,7 +62,9 @@ class ProductMCPTests(unittest.TestCase):
             'finding_id': 'saving', 'scenario': {'id': scenario['id'], 'revision': 1}, 'behavior_ids': ['save'],
             'judgment': 'possibly_deviates', 'summary': '确认之前可能已经保存', 'importance': 'high',
             'evidence': [{'kind': 'file', 'path': 'app.py', 'quote': 'False', 'note': '当前保存规则'}],
-            'limits': '仅检查代码，尚未实际运行'}])
+            'limits': '仅检查代码，尚未实际运行',
+            'display':{'title':'确认前保存','check':'read','impact':'识别错误可能直接进入账本。'}}],
+            report={'version':'behavior-feedback.v1','overview':['saving']})
         self.hook('修正保存行为，保持核对后保存的要求')
         self.call('behavior_review', 'feedback', review_id=review['id'], feedback=[{
             'finding_id': 'saving', 'action': 'fix', 'note': '保留原预期', 'expected_feedback_revision': 0}],
@@ -75,6 +77,32 @@ class ProductMCPTests(unittest.TestCase):
                 'action': 'status', 'session_handle': self.handle, 'task_id': self.task}}})
             self.assertTrue(result.get('isError'))
         self.assertEqual(len(self.c.tools()), 4)
+
+    def test_completed_work_feedback_uses_current_inspection_without_new_expectation_approval(self):
+        self.task=self.call('experience','enable',task_text=self.text,purpose='feedback')['task_id']
+        (self.c.workspace/'app.py').write_text('summary_follows_search = False\n',encoding='utf8')
+        snapshot=self.call('workspace_snapshot','inspect',scopes=['app.py'])
+        self.assertIsNone(snapshot['expectation_id'])
+        value={'finding_id':'search','judgment':'extra','summary':'搜索筛选明细，汇总仍统计全部记录。',
+               'importance':'high','change_origin':'uncertain','limits':'只核对了当前文件',
+               'display':{'title':'搜索与汇总','check':'read','impact':'两处可能对应不同范围。'},
+               'evidence':[{'kind':'file','path':'app.py','quote':'summary_follows_search = False','note':'当前汇总规则'}]}
+        rejected=self.c.send('tools/call',{'name':'buildchoice_behavior_review','arguments':{'request':{
+            'action':'create','session_handle':self.handle,'task_id':self.task,'idempotency_key':uuid.uuid4().hex,
+            'comparison_id':'missing','findings':[]}}})
+        self.assertTrue(rejected.get('isError'));self.assertIn('FEEDBACK_CONTENT_REPAIR_REQUIRED',str(rejected))
+        review=self.call('behavior_review','supplement',current_snapshot_id=snapshot['id'],findings=[value],
+                         report={'version':'behavior-feedback.v1','overview':['search']})
+        self.assertFalse(review['presentation']['has_frozen_baseline'])
+        self.assertNotIn('产品体验预期',review['message'])
+        self.assertNotIn('还有什么具体情况需要确认',review['message'])
+        self.hook('搜索时顶部金额也要变化')
+        saved=self.call('behavior_review','feedback',review_id=review['id'],feedback=[{
+            'finding_id':'search','action':'investigate','note':'核对汇总应如何跟随搜索','expected_feedback_revision':0}],
+            user_message=self.text,quote=self.text,reason='用户对具体体验提出反馈')
+        self.assertTrue(saved['recorded']);self.assertIn('接下来补查',saved['message'])
+        state=self.call('experience','status',task_id=self.task)
+        self.assertEqual(state['scenarios'],[]);self.assertEqual(state['expectations'],[])
 
 
 if __name__ == '__main__': unittest.main()

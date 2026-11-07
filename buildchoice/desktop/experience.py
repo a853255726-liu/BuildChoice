@@ -84,7 +84,9 @@ def summary(store, db, task_id):
             if not superseded and finding['resolution_state'] in ('unresolved', 'deferred') and (
                     finding['requires_followup'] or review['validity'] != 'current'):
                 unresolved.append({'review_id': review['id'], **finding})
+    from .product_workflow import progress
     return {'task_id': task_id, 'enabled': bool(task['enabled']), 'generation': task['generation'],
+            'workflow':progress(store,task_id),
             'scenarios': scenarios, 'expectations': expectations, 'reviews': reviews,
             'latest_review': reviews[-1] if reviews else None,
             'unresolved_differences': unresolved,
@@ -110,6 +112,11 @@ def execute(service, request):
             db.execute('INSERT INTO product_tasks VALUES(?,1,0) ON CONFLICT(task) DO UPDATE SET enabled=1', (task_id,))
             db.execute('INSERT INTO product_task_hosts VALUES(?,?) ON CONFLICT(host) DO UPDATE SET task=excluded.task',
                        (ctx['host_session_digest'], task_id))
+            intents=ps.objects(db,task_id,'workflow_intent')
+            prior=intents[-1]['data'] if intents else {}
+            if request.get('purpose') or request.get('review_policy'):
+                ps.put(store,db,task_id,'workflow_intent',{'purpose':request.get('purpose',prior.get('purpose','plan')),
+                    'review_policy':request.get('review_policy',prior.get('review_policy','standard')),'declared_by':'agent'})
             return {'task_id': task_id, 'enabled': True}
         if action == 'status':
             if task_id: return summary(store, db, task_id)
@@ -173,6 +180,9 @@ def execute(service, request):
         raise ValueError('Unsupported experience action')
 
     result = ps.run(service, request, handler, require_task=False)
+    if result.get('task_id'):
+        from .product_workflow import progress
+        result['workflow']=progress(service.store(),result['task_id'])
     if action == 'document': result['document'] = publish(service, task_id)
     if action not in ('status', 'document') and result.get('task_id'):
         result['document'] = publish(service, result['task_id'])
@@ -201,11 +211,25 @@ def render_scenarios(db, rows):
 
 def render(store, db, task_id):
     from .behavior_review import render as render_review, status as review_status
-    lines = [MARKER, '# 产品预期与行为审阅', '', render_scenarios(db, latest_scenarios(db, task_id)), '']
+    scenes=latest_scenarios(db,task_id)
+    lines = [MARKER, '# 产品预期与行为审阅', '']
+    if scenes:lines += [render_scenarios(db, scenes), '']
     expectations = ps.objects(db, task_id, 'expectation')
     lines += ['已保存开发预期基线：' + str(len(expectations)) + ' 份；每次审阅使用其关联的冻结版本。', '']
     for row in ps.objects(db, task_id, 'behavior_review'):
         lines += [render_review(review_status(store, db, row)), '']
+    from .independent_review import session_state
+    for row in ps.objects(db, task_id, 'independent_review'):
+        state=session_state(store,db,row['id'],task_id)
+        lines += ['## 独立上下文审阅', '', '上下文隔离由宿主声明；程序未认证隔离或语义判断。',
+                  '材料状态：'+state['validity'], '']
+        for entry in state['history']:
+            lines += ['### 第 '+str(entry['revision'])+' 版（'+entry['phase']+'）', '']
+            for issue in entry['issues']:
+                lines += ['- '+issue['title']+'：'+issue['observation']+'；影响：'+issue['effect']]
+            for question in entry['questions']: lines += ['- 待澄清：'+question['question']]
+            for change in entry['changes']: lines += ['- '+change['issue_id']+' / '+change['action']+'：'+change['reason']]
+            lines += ['']
     return '\n'.join(lines) + '\n'
 
 

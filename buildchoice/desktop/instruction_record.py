@@ -5,6 +5,7 @@ from .audit import encode, now
 from .decision_contracts import validate
 from .decision_store import canonical_prompt, fingerprint, prompt_matches
 from . import decision_memory as memory
+from .reply_binding import ReplyBindingError
 
 PROVENANCE = 'llm_interpreted_user_instruction'
 
@@ -41,7 +42,8 @@ def record(service, store, request):
         tables(db)
         ctx=store.context(db,handle,service.owner,claim=True)
         if ctx is None or not prompt_matches(ctx['prompt_digest'],text):
-            raise ValueError('Full user_message must match the current actual Hook message')
+            raise ReplyBindingError('USER_MESSAGE_CONTEXT_MISMATCH',
+                                    'Full user_message must match the current actual Hook message')
         workspace=str(store.workspace);host=ctx['host_session_digest'];key=request['idempotency_key']
         target=ident or supplied['decision_key']+'@'+supplied.get('scope_key','project')
         previous=db.execute('SELECT * FROM decision_v3_instructions WHERE workspace=? AND host=? AND '

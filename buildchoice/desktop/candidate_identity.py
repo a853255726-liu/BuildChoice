@@ -1,7 +1,7 @@
 """Keep risk presentation separate from option behavior and applicability."""
 from copy import deepcopy
 
-RISK_PRESENTATION = {'risk_level','risk_warning','risk_basis','risk_reason','risk_condition','risk_evidence_refs'}
+RISK_PRESENTATION = {'risk_level','risk_warning','risk_basis','risk_reason','risk_condition','risk_evidence_refs','risk_assessment'}
 
 
 def option_semantics(option):

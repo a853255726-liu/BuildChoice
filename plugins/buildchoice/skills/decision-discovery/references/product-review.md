@@ -2,9 +2,20 @@
 
 四个正式入口均在日常工具集中。按工具公布的 action 专用 Schema 提交 request；内部身份由你查询并传递，用户只需自然表达。关闭模式不能记录新数据。
 
+产品体验审阅且宿主具备独立上下文时，按[独立上下文审阅](independent-review.md)以 review_policy=independent 启用；不把完整聊天传给审阅者，不增加模型服务。普通低影响任务保持原流程。
+
+## 已完成工作：先定位对象
+
+1. 用 context 的任务、改动范围、执行结果和相关资料定位用户指的真实项目、改动与交付版本。能查清不问；只有确实存在两个不同对象时才澄清。不要把最近讨论的另一个项目自动视为目标。核对实际根目录、task_id、文件版本和快照；哈希关联不能代替语义定位。
+2. 接续原任务，experience(enable, purpose=feedback)。有原冻结预期和代码起点时 compare → behavior_review(create)，继续使用原版本。
+3. 没有正式旧比较时 workspace_snapshot(inspect, scopes=实际当前范围)，检查相关操作后 behavior_review(supplement, current_snapshot_id=该记录)。inspect 只保存此刻，不是开发起点，不重新 save/present/freeze 一份预期让用户认可。原要求、旧文件、正式比较与运行观察分别说明；supplement 的变化来源仍保持 uncertain。
+4. 需要独立审阅时按[独立协议](independent-review.md)准备当前材料与适用专题，保存真实输出；然后按[反馈内容](feedback-content.md)组织重要发现和证据。没有新产品取舍不额外发卡。
+
 ## 启用与开发前准备
 
-1. 用户要求规划/整理/确认产品体验、解释行为变化、核对开发结果或开启流程时，`buildchoice_experience(enable)` 使用本轮真实 task_text。已存在任务用 task_id 接续；不因句柄存在就默认启用。先查 context.product_tasks 或 experience(status)，复用当前版本和未解决问题，避免重建任务。
+以下准备流程用于开发前规划；已完成工作使用前一节的反馈分支，不补做事前认可。
+
+1. 用户要在开发前规划/整理/确认产品体验或开启完整流程时，`buildchoice_experience(enable)` 使用本轮真实 task_text。已存在任务用 task_id 接续；不因句柄存在就默认启用。先查 context.product_tasks 或 experience(status)，复用当前版本和未解决问题，避免重建任务。
 2. 重要的明确选择用原有 record_instruction 保存；重要未决选择按下节集中处理。技术细节自行处理。
 3. `experience(save)` 提交场景数组：触发 → 操作 → 具体行为。每项重要 behavior 保持稳定 behavior_id 和独立来源 user/decision/project/ai/unresolved。用户来源提交真实完整原话及精确引用；项目来源引用实际已读资料；决定来源绑定当前可信版本。不能把整句话里的 AI 补充冒充已确认决定。修订时未改动的行为可用 source.kind=recorded 加原 scenario 身份/版本和 behavior_id 复用原来源；程序要求行为身份与文字完全相同，不能借旧来源确认新内容。含义冲突由你识别、说明并修正或提问；程序不验证语义。
 4. `experience(present)` 冻结要展示的具体版本。将返回 message **完整展示给用户**，包含各项来源、范围和条件。工具生成不证明 UI 交付，未展示内容不得纳入认可。用户在后续真实消息中明确认可、修改、讨论或暂缓时，`acknowledge` 提交此次 presentation_id、具体场景版本和 accepted/pending/discuss/deferred。只记录明确认可；含糊回复继续澄清。保存、展示、用户沉默均不等于认可，也不提升长期规则。
@@ -15,7 +26,7 @@
 
 ## 集中决策
 
-先用 screen 创建候选。启用任务后 `buildchoice_batch_decisions(present)` 传最多 3 个独立、当前有效的 ASK_NOW 身份/版本；完整展示 message。依赖问题先后分批，已明确要求不重问。单卡与批次不可同时等待同一回复。
+先用 screen 创建候选。启用任务后 `buildchoice_batch_decisions(present)` 传最多 3 个独立、当前有效的 ASK_NOW 身份/版本；按 [对话呈现](conversation.md) 将 presentation.native_request 交给宿主原生问题卡。仅无原生组件时才展示固定 message。依赖问题先后分批，已明确要求不重问。单卡与批次不可同时等待同一回复。
 
 后续真实用户消息如“第一选 B，第二按推荐，第三再讨论”，由你解释并用 submit 提交仅已明确的条目，含 selected/deferred/discuss；未回答项省略。current_recommendation 只可用于冻结批次明确有推荐的项目。“都按推荐”不能替无推荐项作选择。含糊、否定、疑问、竞争选项、新条件不得解释成选择；新含义走原有修订/指令或继续讨论。
 
@@ -27,7 +38,7 @@
 2. 由你结合冻结场景、真实差异、代码、Codex 原生测试和运行观察，提交 `buildchoice_behavior_review(create)`。每条 finding 关联冻结 scenario 和实际检查的 behavior_ids；程序为遗漏行为补“无法判断”。先说用户会遇到什么变化，再给技术依据。
 3. judgment 与 evidence 各自填写。仅模型分析用 llm；文件引用用 file 并提供真实路径、行范围和精确 quote。测试用 test、运行观察用 runtime，记录实际覆盖的 tested_behaviors、结果与 limits。任务启用后的受支持 PostToolUse 会给 observation_id；引用实际返回的精确内容，不能从 exit_code=0 推断测试确实运行或覆盖了所有行为。Hook 不判断命令是不是测试，含义与覆盖由你核对。只有文件日志而没有真实工具记录时，系统标记执行未核验；宿主不支持记录时照实使用该等级，不补造句柄。
 4. 额外行为必须区分 observed_change/preexisting/uncertain。本次变化须有真实差异中的文件依据；原有行为应查起点内容，无法确定就 uncertain。没找到要求来源不能等同“AI 擅自错误新增”。
-5. 展示重要偏差、额外行为、无法判断项，正常低影响项简要汇总。根据 evidence.strength/current、validity/stale_reasons 和实际检查条件限定结论，不说“全部验证正确”。未检查内容不能被通过测试的其他路径覆盖。
+5. 按 [反馈内容](feedback-content.md) 提交结构化 report 和每项 display，使用 create/supplement/status 返回的 message 展示使用变化、重要差异、仅在重要时出现的具体检查缺口和自然语言反馈入口。finding.expected_behavior 来自原冻结行为，补充检查的 reference 只是实际参照，不自动成为用户认可。详细 evidence/limits/scope 按需查看；保持真实检查程度，但不把例行局限反复塞到正文。未检查内容不能被其他通过测试的路径覆盖。
 
 ## 反馈、恢复与文档
 

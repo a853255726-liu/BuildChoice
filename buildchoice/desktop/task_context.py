@@ -158,6 +158,12 @@ def build(service, store, handle, query='', paths=None, task_id=None, since=None
         'semantic_judgment_by':'llm','does_not_authorize_host_operations':True}
     from .document_projection import status as projection_status
     result['document']=projection_status(service,store,handle)
+    from .product_workflow import CONVERSATION_GUIDANCE, progress
+    result['conversation_guidance']=dict(CONVERSATION_GUIDANCE)
+    from .guidance import context_manifest
+    result['guidance_manifest']=context_manifest(result['conversation_guidance'])
+    from .reply_binding import binding_state
+    result['reply_binding']=binding_state(ctx,active)
     # Opt-in tasks are shared within this workspace, while confirmation handles remain chat-local.
     # No product records/tables are created for normal development context queries.
     result['product_tasks']=[]
@@ -169,6 +175,7 @@ def build(service, store, handle, query='', paths=None, task_id=None, since=None
                     'scenario_count':len(ps.objects(db,product['task'],'scenario')),
                     'review_ids':[r['id'] for r in ps.objects(db,product['task'],'behavior_review')],
                     'resume':'buildchoice_experience status with task_id; present current content before new approvals'}
+                entry['workflow']=progress(store,product['task'])
                 if len(encode(result))+len(encode(entry))<max_chars-500:result['product_tasks'].append(entry)
                 else:result['omitted']['product_tasks']=result['omitted'].get('product_tasks',0)+1
     reply=json.loads(ctx['outcome_json']).get('_reply')
@@ -177,6 +184,12 @@ def build(service, store, handle, query='', paths=None, task_id=None, since=None
     if active and active['decision_id']:
         result['active_card_ref']={'decision_id':active['decision_id'],'revision':active['revision'],
             'expired':active['expires']<time.time()}
+    # Optional guidance must share the response budget; active/reply references stay intact.
+    # Keep omissions explicit, and never mutate the process-wide guidance for later queries.
+    while len(encode(result))>max_chars-350 and result['conversation_guidance']:
+        result['conversation_guidance'].pop(next(reversed(result['conversation_guidance'])))
+        result['omitted']['conversation_guidance']=result['omitted'].get('conversation_guidance',0)+1
+        result['guidance_manifest']=context_manifest(result['conversation_guidance'])
     def append(section,value):
         result[section].append(value)
         if len(encode(result))>max_chars-350:

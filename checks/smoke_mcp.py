@@ -17,8 +17,10 @@ from test_guidance import candidate as base_candidate
 
 def candidate():
     value=base_candidate();value['decision_key']='profile.visibility';value['suggested_action']='ASK_NOW'
+    value['content_version']='decision-content.v1'
     for option in value['options']:
         option['option_key']='profile.private' if option['id']=='A' else 'profile.public'
+        option['risk_assessment']={'status':'not_assessed','reason':'Synthetic smoke does not establish risk completeness.'}
     return value
 
 workspace=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir())).resolve()/('buildchoice-mcp-'+uuid.uuid4().hex)
@@ -96,10 +98,19 @@ try:
 
     event={'hook_event_name':'UserPromptSubmit','cwd':str(workspace),'session_id':'mcp-smoke','turn_id':'1','prompt':'给现有项目加登录\r\n'}
     handle=re.search(r'buildchoice-v3-ctx-[A-Za-z0-9_-]+',hook(event))[0]
-    context=call('buildchoice_context',{'session_handle':handle,'paths':['requirements.txt'],'max_chars':3000})
+    context=call('buildchoice_context',{'session_handle':handle,'paths':['requirements.txt'],'max_chars':12000})
     reused=call('buildchoice_context',{'session_handle':handle,'paths':['requirements.txt'],'since':context['snapshot_id']})
     assert reused['sources'][0]['source_id']==context['sources'][0]['source_id']
     assert reused['sources'][0]['reused'] and reused['changes']==[]
+    rejected=send('tools/call',{'name':'buildchoice_screen_candidates','arguments':{'request':{
+        'task_text':event['prompt'].strip('\r\n'),'next_step':'Implement access rules','candidates':[base_candidate()],
+        'session_handle':handle,'idempotency_key':'reject-legacy-new-input'}}})
+    assert rejected.get('isError') and 'CONTENT_REPAIR_REQUIRED' in json.dumps(rejected),rejected
+    invalid=candidate();invalid['question']='Question\nUnwanted second paragraph'
+    rejected=send('tools/call',{'name':'buildchoice_screen_candidates','arguments':{'request':{
+        'task_text':event['prompt'].strip('\r\n'),'next_step':'Implement access rules','candidates':[invalid],
+        'session_handle':handle,'idempotency_key':'reject-multiline'}}})
+    assert rejected.get('isError') and 'CONTENT_REPAIR_REQUIRED' in json.dumps(rejected),rejected
     response=call('buildchoice_screen_candidates',{'request':{'task_text':event['prompt'].strip('\r\n'),'phase':'before_implementation',
         'next_step':'Implement access rules','candidates':[candidate()],'session_handle':handle,'idempotency_key':'screen',
         'coverage':[{'dimension':'access_visibility','status':'candidate','reason':'Access rule needs a choice.','candidate_ids':['visibility']}]}})
@@ -107,6 +118,7 @@ try:
     # Display-only risk metadata does not change option identity or Hook reply parsing.
     risk_candidate=candidate()
     risk_candidate['options'][1].update(risk_level='high',risk_basis='potential',
+        risk_assessment={'status':'risks_identified','reason':'Transferable link access permits disclosure.'},
         risk_warning='If a link is shared with the wrong person, profile details may become visible.',
         risk_condition='If a user forwards the profile link',risk_reason='The option uses a transferable link.')
     risk_response=call('buildchoice_screen_candidates',{'request':{'task_id':response['task_id'],
@@ -121,6 +133,14 @@ try:
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert 'BuildChoice' in active['message']
     assert '风险提示' in active['message']
+    native=active['presentation']['native_request']
+    assert len(native['questions'])==1
+    assert set(native['questions'][0])=={'title','options'}
+    assert native['questions'][0]['title']==risk_candidate['question']
+    assert not native['questions'][0]['options'][0].startswith('A.')
+    assert '风险提示' in native['questions'][0]['options'][1]
+    assert active['presentation']['bindings'][0]['decision_id']==item['decision_id']
+    assert active['presentation']['user_confirmed'] is False
     retried=call('buildchoice_card_activate',{'task_id':response['task_id'],'decision_id':item['decision_id'],
         'revision':1,'idempotency_key':'activate','session_handle':handle})
     assert retried==active

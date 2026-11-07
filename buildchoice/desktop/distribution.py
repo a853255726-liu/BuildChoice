@@ -22,7 +22,7 @@ def build_plugin(root=ROOT):
         'author':{'name':'BuildChoice'},'mcpServers':'./.mcp.json','hooks':'./hooks/hooks.json','skills':'./skills/',
         'requires_local_executor':True,
         'interface':{'displayName':'BuildChoice','shortDescription':'在编程过程中确认重要的实现选择',
-                     'longDescription':'结合项目资料确认重要选择，按任务维护可理解的产品预期，并对照开发前基线审阅行为差异。支持集中决策和跨聊天接续。',
+                     'longDescription':'在聊天内通过宿主原生问题卡确认重要选择；按任务保存产品预期和开发前基线，以非技术语言反馈行为差异与验证范围。支持集中决策和跨聊天接续。',
                      'developerName':'BuildChoice','category':'Developer Tools','capabilities':['Read','Write']}})
     write_json(package/'.mcp.json',{'mcpServers':{'buildchoice':{
         'command':'python','args':['${PLUGIN_ROOT}/scripts/launch.py'],

@@ -26,12 +26,9 @@ def main():
     session_id = uuid.uuid4().hex
     from buildchoice.desktop.decision_service import DecisionService
     decisions=DecisionService(WORKSPACE,session_id)
+    from buildchoice.desktop.guidance import compose
     server = FastMCP('buildchoice', log_level='WARNING', instructions=(
-        'BuildChoice records implementation choices with source, ownership and version checks. '
-        'Follow decision-discovery Skill for workflow. Core tools cover daily decisions; full tools '
-        'add optional audit, memory management, implementation links and experimental verification. '
-        'The LLM judges meaning, importance and timing. Source binding is not semantic approval '
-        'or authorization for host operations. No automatic audit or independent validation claim.'))
+        compose('service')))
     annotation = ToolAnnotations(readOnlyHint=True, destructiveHint=False,
                                  idempotentHint=False, openWorldHint=False)
     active_session = None
@@ -136,6 +133,11 @@ def main():
         freeze saves pre-development expectation versions, including their mixed review states.
         status recovers workspace tasks across chats; fresh confirmation never inherits old handles.
         document retries publication without duplicating versions. No long-term rule promotion.
+        For completed-work feedback use enable(purpose=feedback); do not generate new pre-work
+        expectations to make the human approve an already implemented product.
+        review_policy=independent opts into a host fresh-context reviewer before publishing feedback;
+        applicable professional topics are selected later in behavior_review prepare_independent.
+        omission preserves the existing policy. Ordinary tasks default to standard.
         """
         require_enabled()
         return decisions.experience(request)
@@ -148,6 +150,7 @@ def main():
         compare uses saved content, reports actual diffs, exclusions and attribution limits.
         Storage is outside the code workspace, bounded and private; prune removes content only.
         Scope/credential/link/large-file exclusions limit review conclusions. No commands are run.
+        inspect captures CURRENT files for supplementary feedback without inventing a past baseline.
         """
         require_enabled()
         return decisions.workspace_snapshot(request)
@@ -162,8 +165,26 @@ def main():
         feedback binds current real user_message for fix/change_requirement/accept_extra/investigate/
         defer. Requirement changes need a trusted decision and revised scenario. Acceptance never
         proves tests passed or grants host permissions. A new review links previous_review_id.
+        New create/supplement requests use report(version=behavior-feedback.v1, overview=finding IDs)
+        and findings.display(title, check, optional impact/gap). Gaps name a specific situation,
+        user effect, next step and owner; omit immaterial gaps and blanket caveats.
+        supplement uses a CURRENT inspect snapshot when old baselines are missing; no new scenario
+        approval. References must be real; missing requirements alone do not establish a deviation.
+        prepare_independent accepts optional review_topics: interface/documentation/debugging.
+        Choose by task; omit for core-only review. The packet freezes actual guidance and exposes
+        guidance identity plus actual workspace/task/snapshot. Old packets retain legacy guidance.
+        Independent review actions: prepare_independent, submit_independent, provide_background,
+        reconsider_independent, independent_status. The host spawns fork_turns=none with inherited
+        model using packet payload only. The MCP never invokes a model. Record first output before
+        targeted background, preserve explicit change reasons, then map every issue in independent_review.
+        Agent identity/isolation is host-reported, not program-attested. No permission isolation is added.
+        The independent review core is material deviation from the user goal under known constraints.
+        Allow reasonable implementation discretion; absent item-by-item approval alone is not a defect.
+        Start with one overall pass; deepen concrete material doubts instead of conducting a full audit.
         """
         require_enabled()
+        from buildchoice.desktop.feedback_report import require_current
+        require_current(request)
         return decisions.behavior_review(request)
 
     @server.tool(annotations=audit_write,structured_output=True)
@@ -186,8 +207,15 @@ def main():
         risk meaning, source applicability and semantic equivalence are LLM judgments.
         Read validation_status separately. Use buildchoice_context to reuse real sources.
         Omit phase; stage metadata is recorded by the server and does not affect routing.
+        Use content_version=decision-content.v1 and option risk_assessment(status, reason).
+        Status is not_assessed/no_specific_risk/risks_identified; missing assessment never means safe.
+        Keep plain concise fields with no numbering in labels. Handle CONTENT_REPAIR_REQUIRED
+        by regenerating the reported fields with unchanged meaning and a new idempotency key.
+        Format checks and valid sources do not prove risk completeness or recommendation quality.
         """
         require_enabled()
+        from buildchoice.desktop.decision_content import require_current
+        require_current(request.get('candidates',[]))
         return decisions.screen(request)
 
     @server.tool(annotations=annotation,structured_output=True)
@@ -197,6 +225,9 @@ def main():
         paths reads workspace files and reuses valid receipts; no separate audit session is needed.
         since is a prior snapshot_id from this same chat, returning literal changes, not business impact.
         Inspect omitted/content_truncated. Reuse active cards and recorded choices after reconnect.
+        Read conversation_guidance, its guidance_manifest of actually included hints, and
+        product_tasks[].workflow. Omitted guidance is not read. A user request to plan/confirm/review
+        product experience must enable that flow before editing; ordinary tasks remain opt-in.
         This never confirms a choice, changes a rule or authorizes execution.
         """
         require_enabled()
@@ -211,10 +242,14 @@ def main():
         Only select when the user clearly chose this option; clarify questions, negations,
         competing options or changed requirements. Python verifies source/card/version, not meaning.
         Records llm_interpreted_user_reply with semantic_verified_by_program=false.
+        Require context.reply_binding.can_interpret_reply. A missing native-answer Hook returns
+        recorded=false with recovery; never retry the old handle or switch to record_instruction.
         Never use an Agent claim or document as user authorization; no host execution permission.
         """
         require_enabled()
-        return decisions.interpret_reply(task_id,decision_id,revision,choice_id,quote,reason,session_handle)
+        from buildchoice.desktop.reply_binding import recording_result
+        return recording_result(lambda: decisions.interpret_reply(
+            task_id,decision_id,revision,choice_id,quote,reason,session_handle))
 
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_record_instruction(request: dict) -> dict[str,Any]:
@@ -229,9 +264,12 @@ def main():
         Returns llm_interpreted_user_instruction, semantic_verified_by_program=false and document
         synchronization status. Pending document writes are retryable; never directly edit SQLite.
         This records a choice, never authorizes host execution or promotes a long-term rule.
+        Missing/mismatched Hook input returns recorded=false with recovery. Do not use this
+        tool to bypass an unbound native reply or reconstruct a user message for an old handle.
         """
         require_enabled()
-        return decisions.record_instruction(request)
+        from buildchoice.desktop.reply_binding import recording_result
+        return recording_result(lambda: decisions.record_instruction(request))
 
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_decision_document(session_handle: str, task_id: str | None = None,
@@ -251,7 +289,10 @@ def main():
     @server.tool(annotations=audit_write,structured_output=True)
     def buildchoice_card_activate(task_id: str, decision_id: str, revision: int, idempotency_key: str,
                            session_handle: str | None = None) -> dict[str,Any]:
-        """Activate exactly one unresolved card. Show the returned message in the current conversation.
+        """Activate exactly one unresolved card. Prefer a clickable host-native question card.
+        Call the available request_user_input_async with presentation.native_request, without first
+        dumping the text card. If the host lacks native question tools, use the fixed message fallback.
+        The presentation bindings map exact labels to frozen options; do not expose internal IDs.
         Activation is not proof of UI delivery. Replies must bind a real Hook message;
         direct parsing and LLM interpretation have distinct provenance.
         """
@@ -297,6 +338,8 @@ def main():
                                        reason: str, session_handle: str | None = None) -> dict[str,Any]:
         """Append a proposed new version; never writes a trusted user choice. Re-activate and ask anew."""
         require_enabled(advanced=True)
+        from buildchoice.desktop.decision_content import require_current
+        require_current([candidate])
         return decisions.prepare_revision(task_id,decision_id,revision,candidate,reason,session_handle)
 
     @server.tool(annotations=audit_write,structured_output=True)

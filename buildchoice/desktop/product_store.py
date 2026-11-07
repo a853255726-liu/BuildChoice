@@ -89,7 +89,7 @@ def run(service, request, handler, require_task=True):
         ctx = context(service, store, db, request['session_handle'])
         task_id = request.get('task_id')
         if require_task:
-            task(store, db, task_id, enabled=request['action'] not in ('status', 'document'))
+            task(store, db, task_id, enabled=request['action'] not in ('status', 'document', 'independent_status'))
             db.execute('INSERT INTO product_task_hosts VALUES(?,?) ON CONFLICT(host) DO UPDATE SET task=excluded.task',
                        (ctx['host_session_digest'], task_id))
         target = request['action'] + ':' + str(task_id) + ':' + str(request.get('presentation_id',

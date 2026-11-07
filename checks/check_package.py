@@ -19,6 +19,7 @@ from buildchoice.desktop.distribution import archive_plugin
 
 out=Path(os.environ.get('BUILDCHOICE_CHECK_ROOT',tempfile.gettempdir())).resolve()/('buildchoice-package-check-'+uuid.uuid4().hex)
 out.mkdir()
+subprocess.run([sys.executable,str(root/'scripts/sync_guidance.py'),'--check'],cwd=root,check=True)
 for path in root.rglob('*.py'):
     if not any(p in path.parts for p in ('__pycache__','.git')):
         ast.parse(path.read_text(encoding='utf-8'),filename=str(path))
@@ -45,7 +46,7 @@ for result in archives:
         if 'core' in path.name:
             assert archive.read('LICENSE')==(root/'LICENSE').read_bytes()
             manifest=json.loads(archive.read('runtime_manifest.json'))
-            assert manifest['package_version']==VERSION=='0.14.0'
+            assert manifest['package_version']==VERSION=='0.15.3'
             assert not any('audit_web' in name or name.endswith(('.html','.css','.js')) for name in archive.namelist())
             assert 'scripts/buildchoice_audit.py' not in archive.namelist()
             assert {'scripts/buildchoice_run_verification.py','scripts/buildchoice_test_worker.py',
@@ -58,6 +59,10 @@ for result in archives:
                 'buildchoice/desktop/product_contracts.py','buildchoice/desktop/workspace_snapshot.py',
                 'buildchoice/desktop/behavior_review.py','buildchoice/desktop/batch_decisions.py',
                 'buildchoice/desktop/product_observer.py','docs/PRODUCT_REVIEW.md'}<=set(archive.namelist())
+            assert {'buildchoice/desktop/conversation_ui.py','buildchoice/desktop/product_workflow.py',
+                    'buildchoice/desktop/decision_content.py','buildchoice/desktop/feedback_report.py'}<=set(archive.namelist())
+            assert {'buildchoice/desktop/independent_review.py','docs/INDEPENDENT_REVIEW.md'}<=set(archive.namelist())
+            assert 'buildchoice/desktop/guidance.py' in archive.namelist()
             assert not any('model' in name for name in archive.namelist())
             for name,entry in manifest['files'].items():
                 data=archive.read(name)
@@ -69,6 +74,8 @@ for result in archives:
             assert plugin['skills']=='./skills/'
             assert 'buildchoice/skills/decision-memory/SKILL.md' in archive.namelist()
             assert 'buildchoice/skills/decision-discovery/references/product-review.md' in archive.namelist()
+            assert 'buildchoice/skills/decision-discovery/references/independent-review.md' in archive.namelist()
+            assert 'buildchoice/skills/decision-discovery/references/conversation.md' in archive.namelist()
             assert set(json.loads(archive.read('buildchoice/hooks/hooks.json'))['hooks'])=={'UserPromptSubmit','PostToolUse'}
 
 # Initialize from the actual source and from the checksummed runtime bundle.

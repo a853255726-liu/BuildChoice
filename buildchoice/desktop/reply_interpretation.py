@@ -4,6 +4,7 @@ import time
 import uuid
 from .audit import now
 from .decision_store import fingerprint
+from .reply_binding import ReplyBindingError
 
 
 PROVENANCE='llm_interpreted_user_reply'
@@ -20,7 +21,7 @@ def interpret(store, task, owner, handle, decision_id, revision, choice_id, quot
             raise ValueError('Current observed user-message context required')
         outcome=json.loads(ctx['outcome_json']);reply=outcome.get('_reply')
         if not reply or (reply['decision_id'],reply['revision'])!=(decision_id,revision):
-            raise ValueError('No matching pending user reply in this context')
+            raise ReplyBindingError('NO_OBSERVED_REPLY', 'No matching pending user reply in this context')
         if quote not in reply['text']:raise ValueError('Quote is not present in the actual user reply')
         latest=db.execute('SELECT max(revision) FROM decision_v3_items WHERE id=?',(decision_id,)).fetchone()[0]
         if latest!=revision:raise ValueError('Reply interpretation belongs to an old decision revision')

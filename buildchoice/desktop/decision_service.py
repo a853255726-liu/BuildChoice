@@ -198,6 +198,8 @@ class DecisionService:
                 if candidate_content(old)!=candidate_content(candidate) and material_change(old,candidate):
                     confirmation=None
             policy=route(candidate,ev,confirmation)
+            if candidate.get('content_version') and any(d.get('candidate_id')==candidate['candidate_id'] and d.get('requires_inspection') for d in diagnostics):
+                policy.update(status='INSPECT',validation_status='needs_evidence',reason_codes=['OPTION_WARNING_NEEDS_BASIS'])
             with store.connect() as db:
                 recalled=memory.match_candidate(store,db,candidate,task['id']) if request.get('session_handle') else None
             if recalled and recalled['status']=='applicable' and ev['applicable_constraint']:
@@ -257,17 +259,29 @@ class DecisionService:
         options=[]
         for option in candidate['options']:
             value=dict(option)
-            if option.get('risk_level')=='high' and option.get('risk_warning'):
+            if option.get('risk_warning'):
                 refs=option.get('risk_evidence_refs',[])
                 proof=self.evidence(store,{'field':candidate['field'],'options':[],'evidence_refs':refs},[])
                 grounded=bool(refs and not proof['invalid'] and len(proof['source_ids'])==len(refs))
                 conditional=bool(option.get('risk_basis')=='potential' and option.get('risk_reason','').strip() and option.get('risk_condition','').strip() and not proof['invalid'])
                 if not (grounded or conditional) or option.get('risk_basis') not in ('observed','potential'):
                     for key in RISK_PRESENTATION:value.pop(key,None)
+                    value['risk_assessment']={'status':'not_assessed','reason':'Risk basis could not be validated; inspect sources before presenting.'}
                     diagnostics.append({'code':'OPTION_WARNING_NEEDS_BASIS','option_id':option['id'],
-                        'candidate_id':candidate['candidate_id'],'requires_inspection':True})
+                        'candidate_id':candidate.get('candidate_id','stored-card'),'requires_inspection':True})
             options.append(value)
         return options
+
+    def check_content_sources(self, store, candidate):
+        if not candidate.get('content_version'):return
+        from .decision_content import validate_content
+        validate_content(candidate)
+        diagnostics=[]
+        self.risk_options(store,candidate,diagnostics)
+        if diagnostics:
+            raise ValueError(json.dumps({'code':'CONTENT_EVIDENCE_RECHECK_REQUIRED',
+                'issues':diagnostics,'next_action':'Re-read the risk sources and regenerate supported content before presenting.',
+                'semantic_verified_by_program':False},ensure_ascii=False))
 
     def activate(self, task_id, decision_id, revision, idempotency_key, session_handle=None):
         if type(revision) is not int or revision<1 or not isinstance(idempotency_key,str) or not 1<=len(idempotency_key)<=150:
@@ -275,9 +289,15 @@ class DecisionService:
         store=self.store();task=store.task(task_id,self.owner,session_handle)
         if task['binding_status']=='hook_observed' and not session_handle:
             raise ValueError('Card activation requires an unexpired Hook context')
+        for row in store.items(task_id):
+            if row['id']==decision_id and row['revision']==revision:
+                self.check_content_sources(store,json.loads(row['candidate_json']))
         pending=[r for r in store.items(task_id) if json.loads(r['routing_json'])['status']=='ASK_NOW' and r['state'] not in ('confirmed','superseded')]
         position=next((i+1 for i,r in enumerate(pending) if r['id']==decision_id),1)
-        return store.activate(task,decision_id,revision,idempotency_key,position,len(pending))
+        result=store.activate(task,decision_id,revision,idempotency_key,position,len(pending))
+        from .conversation_ui import single
+        from .product_workflow import progress
+        return {**single(result),'workflow':progress(store,task_id)}
 
     def status(self, task_id=None, session_handle=None):
         settings=self.settings()
@@ -347,6 +367,7 @@ class DecisionService:
         if not isinstance(reason,str) or not reason.strip() or len(reason)>1000:raise ValueError('Concrete revision reason required')
         store=self.store();task=store.task(task_id,self.owner,session_handle)
         if task['binding_status']=='hook_observed' and not session_handle:raise ValueError('Revision requires current Hook context')
+        self.check_content_sources(store,candidate)
         return store.prepare_revision(task,decision_id,revision,candidate,reason)
 
     def link_implementation(self, task_id, decision_id, revision, path, note,

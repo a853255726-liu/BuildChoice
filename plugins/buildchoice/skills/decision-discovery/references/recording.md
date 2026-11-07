@@ -13,3 +13,5 @@
 
 普通确认自动形成项目参考，不主动追问长期保存。“保存这个决定”不自动升级为长期规则；用户明确要求长期记住或管理记忆时再使用 [decision-memory](../../decision-memory/SKILL.md)，或直接使用 context 中现成的 management_request/记忆结果。修改实现选择使用指令记账入口，记忆管理不能代替决定修订。
 
+异步原生回复必须有对应的新 Hook 句柄。NO_OBSERVED_REPLY、USER_MESSAGE_CONTEXT_MISMATCH 和 HOOK_CONTEXT_UNAVAILABLE 都保持 recorded=false；遵循工具的 recovery，不用同一句柄换接口重试。新旧消息的换行会规范化，但不会把不同消息当成同一条。不要让用户为插件诊断反复点选；需要保存时用一次普通消息恢复可信关联。
+

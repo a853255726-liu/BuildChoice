@@ -14,6 +14,7 @@ from contextlib import closing, contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from .audit import Ledger, encode, now
+from .reply_binding import ReplyBindingError
 
 
 def fingerprint(value):
@@ -210,7 +211,7 @@ class DecisionStore:
         if handle is None: return None
         row=db.execute('SELECT * FROM decision_v3_contexts WHERE handle=?',(handle,)).fetchone()
         if row is None or row['workspace']!=str(self.workspace) or row['expires']<time.time():
-            raise ValueError('Missing, mismatched or expired Hook context')
+            raise ReplyBindingError('HOOK_CONTEXT_UNAVAILABLE', 'Missing, mismatched or expired Hook context')
         if row['owner'] is not None and row['owner']!=owner: raise ValueError('Hook context already claimed by another MCP session')
         if claim: db.execute('UPDATE decision_v3_contexts SET owner=? WHERE handle=?',(owner,handle))
         return dict(row)

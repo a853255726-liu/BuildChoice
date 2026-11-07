@@ -78,6 +78,9 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 500
+        },
+        "risk_assessment": {
+          "$ref": "#/$defs/RiskAssessment"
         }
       },
       "required": [
@@ -279,6 +282,12 @@
         },
         "allow_defer": {
           "type": "boolean"
+        },
+        "content_version": {
+          "enum": [
+            "decision-content.v1"
+          ],
+          "description": "Versioned concise model content; program validates before persisting or displaying."
         }
       },
       "required": [
@@ -290,7 +299,7 @@
         "options",
         "suggested_action"
       ],
-      "description": "Core fields identify a choice, its product impact, options and explicit LLM action. Sources, scope, risks and memory annotations are optional; they never infer an action."
+      "description": "Model-generated structured decision content. New callers use content_version=decision-content.v1 and explicit option risk_assessment; legacy V3 remains readable. Python validates structure, presentation consistency and sources, never semantic completeness."
     },
     "Resource": {
       "type": "object",
@@ -471,6 +480,12 @@
             "maxLength": 1000
           },
           "maxItems": 20
+        },
+        "content_version": {
+          "enum": [
+            "decision-content.v1"
+          ],
+          "description": "Versioned concise model content; program validates before persisting or displaying."
         }
       },
       "required": [
@@ -1164,6 +1179,29 @@
         "expected_revision",
         "idempotency_key"
       ]
+    },
+    "RiskAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "not_assessed",
+            "no_specific_risk",
+            "risks_identified"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "description": "Agent-declared scope-limited assessment. no_specific_risk is not proof of safety."
     }
   },
   "$ref": "#/$defs/ScreenRequest"

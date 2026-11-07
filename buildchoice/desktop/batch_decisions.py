@@ -58,8 +58,11 @@ def execute(service, request):
             if active and active['expires'] >= time.time():
                 prior = state(store, db, ps.get(db, active['batch_id'], 'batch'))
                 if prior['pending']:
+                    if any(r['status']=='stale' for r in prior['decisions']):
+                        raise ValueError('Active batch is stale; suspend and present current versions')
                     if [(r['decision_id'], r['revision']) for r in prior['decisions']] == [(r['decision_id'], r['revision']) for r in request['decisions']]:
-                        return {**prior, 'already_active': True}
+                        frozen=ps.get(db,active['batch_id'],'batch')['data']['decisions']
+                        return {**prior, 'decisions':frozen, 'already_active': True}
                     raise ValueError('Another frozen batch is active; continue its unresolved items')
             ids = [r['decision_id'] for r in request['decisions']]
             if len(ids) != len(set(ids)): raise ValueError('Duplicate decision in batch')
@@ -69,6 +72,7 @@ def execute(service, request):
             for index, ref in enumerate(request['decisions'], 1):
                 row, route = item(store, db, task_id, ref)
                 candidate = json.loads(row['candidate_json'])
+                service.check_content_sources(store,candidate)
                 if store.confirmation(row) or route['status'] != 'ASK_NOW' or not route.get('card'):
                     raise ValueError('Batch may contain only unresolved ASK_NOW decisions')
                 for dependency in candidate.get('depends_on', []):
@@ -137,6 +141,17 @@ def execute(service, request):
         queue(service, store, request['session_handle'])
         return {**result, 'recorded': True, 'source': source}
     result = ps.run(service, request, handler)
+    if action == 'present':
+        from .conversation_ui import decision_presentation
+        from .product_workflow import progress
+        # Replayed active batches still need current risk sources before redisplay.
+        for entry in result['decisions']:
+            card=entry['card'];recommendation=card.get('recommendation') or {}
+            service.check_content_sources(service.store(),{**card,'field':card['question'],
+                'impact':card['why_it_matters'],'recommended_option_id':recommendation.get('option_id'),
+                'recommendation_reason':recommendation.get('reason','')})
+        result = {**result, 'presentation': decision_presentation(result['decisions']),
+                  'workflow': progress(service.store(), task_id)}
     if action == 'submit' and result.get('replayed'):
         store = service.store()
         with store.connect() as db:

@@ -175,6 +175,8 @@ class ContextWorkflowTests(unittest.TestCase):
         self.assertLessEqual(len(encode(bundle)),2000)
         self.assertTrue(bundle.get('omitted') or any(r.get('content_truncated') for r in bundle['sources']))
         self.assertEqual(bundle['active_card_ref']['decision_id'],value['decisions'][0]['decision_id'])
+        full=self.service.context_bundle(self.handle,max_chars=12000)
+        self.assertIn('feedback_entry',full['conversation_guidance'])
 
     def test_context_and_snapshot_are_scoped_to_real_chat(self):
         snapshot=self.service.context_bundle(self.handle)['snapshot_id']

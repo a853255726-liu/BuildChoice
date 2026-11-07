@@ -11,23 +11,21 @@ def make_card(decision_id, revision, candidate):
             'recommendation': recommendation, 'allow_discuss': True,
             'allow_defer': candidate.get('allow_defer',True),
             'blocked_steps': candidate.get('depends_on', []) or [candidate['field']]}
+    if candidate.get('content_version'):card['content_version']=candidate['content_version']
     return validate('Card', card)
 
 
 def render(card, position=1, total=1, verified=True):
-    lines = [f'【BuildChoice · 决策 {position}/{total} · {card["display_id"]} · v{card["revision"]}】',
-             card['question'], '原因：' + card['why_it_matters']]
+    from .conversation_ui import option_text
+    lines = [f'### BuildChoice · 选择 {position}/{total}', '',
+             '**' + card['question'] + '**', '', '**产品影响**', card['why_it_matters'], '', '**可选方案**', '']
     for option in card['options']:
-        recommended = card['recommendation'] and card['recommendation']['option_id'] == option['id']
-        lines.append(option['id'] + '. ' + option['label'] + ('（推荐）' if recommended else '') + '：' + option['tradeoff'])
-        if option.get('risk_level')=='high' and option.get('risk_warning'):
-            basis='项目资料中的风险' if option.get('risk_basis')=='observed' else '可能发生'
-            lines.append('   风险提示（'+basis+'）：'+option['risk_warning'])
+        lines += [option_text(card, option), '']
     if card['recommendation']:
-        lines.append('建议 ' + card['recommendation']['option_id'] + '，因为' + card['recommendation']['reason'])
-    lines.append('可回复“我选第二个”、完整方案名称，或 ' + ' / '.join(o['id'] for o in card['options']) + '；需要讨论可回复“解释一下”。')
+        lines += ['**推荐理由**', card['recommendation']['reason'], '']
+    lines.append('可选择 ' + ' / '.join(o['id'] for o in card['options']) + '，也可以直接说明想法或继续讨论。')
     if card['allow_defer']:
-        lines.append('可回复“暂缓”，在依赖此选择的步骤前重新确认。')
+        lines.append('需要稍后决定时，可回复“暂缓”。')
     elif card['blocked_steps']:
         lines.append('等待期间暂停受影响步骤：' + '、'.join(card['blocked_steps']) + '；其他独立工作可以继续。')
     if not verified:

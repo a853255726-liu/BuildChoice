@@ -5,10 +5,17 @@ import json
 import sys
 from pathlib import Path
 from openai_codex.client import CodexClient, CodexConfig
-from openai_codex.generated.v2_all import PluginInstallResponse, PluginReadResponse
+from openai_codex.generated.v2_all import HookEventName, PluginInstallResponse, PluginReadResponse
 
 
 from installation import windows_hook_command,configure_runtime
+
+
+def validate_components(detail):
+    # The SDK uses lower-camel wire values, not hooks.json's PascalCase keys.
+    expected={HookEventName.user_prompt_submit,HookEventName.post_tool_use}
+    if detail.mcp_servers != ['buildchoice'] or {h.event_name for h in detail.hooks} != expected:
+        raise ValueError('Installed plugin does not expose the unified server and prompt/read Hooks')
 
 
 def install(workspace,marketplace=None):
@@ -27,8 +34,7 @@ def install(workspace,marketplace=None):
         client.initialize()
         client.request('plugin/install',{'pluginName':name,'marketplacePath':str(marketplace)},response_model=PluginInstallResponse)
         detail = client.request('plugin/read',{'pluginName':name,'marketplacePath':str(marketplace)},response_model=PluginReadResponse).plugin
-    if detail.mcp_servers != ['buildchoice'] or {h.event_name.value for h in detail.hooks}!={'UserPromptSubmit','PostToolUse'}:
-        raise ValueError('Installed plugin does not expose the unified server and prompt/read Hooks')
+    validate_components(detail)
     return {'installed':detail.summary.installed,'enabled':detail.summary.enabled,'id':detail.summary.id,
             'mcp_servers':detail.mcp_servers,'hook_events':[h.event_name.value for h in detail.hooks],
             'hook_trust_modified':False,'native_ui_visually_verified':False}

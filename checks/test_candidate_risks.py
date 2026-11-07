@@ -190,10 +190,13 @@ class CandidateRiskTests(unittest.TestCase):
         self.assertNotIn('风险提示',render(result['decisions'][0]['card']))
         self.assertEqual(result['screen_status'],'INSPECT')
 
-    def test_medium_and_legacy_options_keep_original_display(self):
+    def test_medium_supported_warning_is_visible_and_legacy_missing_assessment_is_not_safe(self):
         plain=self.screen()[0]['decisions'][0]['card']
-        changed=deepcopy(plain);changed['options'][0].update(risk_level='medium',risk_warning='An ordinary concern.')
-        self.assertEqual(render(plain),render(changed))
+        changed=deepcopy(plain);changed['options'][0].update(risk_level='medium',risk_warning='An ordinary concern.',risk_basis='potential')
+        self.assertIn('An ordinary concern.',render(changed))
+        from buildchoice.desktop.conversation_ui import decision_presentation
+        form=decision_presentation([{'decision_id':'test','revision':1,'card':plain}])
+        self.assertEqual(form['details'][0]['risk_assessments'][0]['status'],'not_assessed')
 
     def test_risk_copy_does_not_change_deduplication_or_confirmed_identity(self):
         updated=deepcopy(self.candidate);updated['options'][0].update(warning())

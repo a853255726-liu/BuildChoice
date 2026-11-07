@@ -34,13 +34,16 @@ MCP 只检查声明字段、真实引用、来源当前性与身份。程序不�
 
 ## 选项风险展示
 
-原标题、选项、利弊、推荐和回复方式保持。仅高风险且有足够依据的选项追加风险提示；普通选项文本不变。
+0.14.2 起，新候选的每个选项声明 risk_assessment(status, reason)，区分 not_assessed / no_specific_risk / risks_identified。旧选项没有此字段时按未评估展示元数据，不回写历史。no_specific_risk 是模型在有限范围内的声明，不是安全认证。新内容的矛盾状态、缺失依据或格式不合格会要求修正/补查。
+
+有足够依据的具体风险不再受 high 等级限制；low / medium / high 都可追加风险提示，potential 同时显示触发条件。新契约来源无效时不生成可激活卡，不静默隐藏警告后继续提问。原生标题只放问题，选项不重复编号；impact 与推荐理由保留在 details，按需说明。详细规则见[结构化内容](DECISION_CONTENT.md)。
 
 ```json
 {
   "id":"A", "option_key":"storage.browser",
   "label":"仅在当前浏览器保存", "tradeoff":"实现简单，不需要服务器",
   "value":"browser_only", "behavior":"浏览器保存唯一副本",
+  "risk_assessment":{"status":"risks_identified","reason":"浏览器保存唯一副本，清理后缺少独立备份。"},
   "risk_level":"high", "risk_basis":"potential",
   "risk_warning":"清除浏览器数据或更换设备后，记录可能无法恢复。",
   "risk_condition":"仅有浏览器副本，且用户清除站点数据或更换设备",

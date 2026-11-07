@@ -88,7 +88,7 @@ Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用
 
 | 标识 | 用途 |
 |---|---|
-| 0.14.0 | 产品发布版本，写入插件元数据和分发包名称 |
+| 0.15.2 | 产品发布版本，写入插件元数据和分发包名称；按需补充界面内容、文档一致性与故障排查，不增加固定流程 |
 | V3 / decision.v3 | 决策卡流程及其数据契约，与产品版本分别演进 |
 | audit.v1 | 文件来源、引用与兼容审计记录格式 |
 | memory.v1 | 项目决策记忆的查询结果格式 |
@@ -96,3 +96,11 @@ Python 包、插件 ID、MCP 服务键统一为 buildchoice。安装数据使用
 | candidate-extractor-v4.1 | Agent 候选提取指引版本 |
 
 .claude-plugin/marketplace.json 是当前安装器使用的本地市场兼容布局；plugins/buildchoice/.codex-plugin/plugin.json 是 Codex 插件清单。安装器在独立数据目录生成插件副本和市场文件；源码内的文件用作模板。install_local.py 通过 openai_codex SDK 调用 Codex app-server 的 plugin/install 和 plugin/read；目录名称不代表运行了 Claude 服务。
+
+## 指导语维护与分发
+
+`buildchoice/desktop/guidance.py` 维护 G01–G06 的共同含义、角色短版和三个专业审阅短版；只负责纯数据与拼接，不进行关键词分类、模型调用或权限授予。Skill 入口、独立核心、反馈核心及专题的明确标记块由 `python scripts/sync_guidance.py` 同步；`--check` 检测漂移，保留块外原文和换行。流程、卡片协议和参数契约仍由原文件负责。双语含义与判断效果不能由生成检查证明。
+
+普通任务只按需读相关入口；独立策略仍沿用原启用条件。context 的 `guidance_manifest` 标出版本、实际包含 key 与规则，省略仍在 omitted 中声明。独立包通过可选 `review_topics` 接收 interface/documentation/debugging 专业短版，不接收执行者怀疑点或聊天。新 prepare 将实际指导与复核动作、身份及摘要保存进材料记录，预算含全文，超预算在写入前拒绝。历史包继续使用 legacy-0.15.2 文字，升级不追溯改写。
+
+材料中的 target_identity 来自真实工作区、任务和快照，文件哈希复用 artifacts/inventory；它只证明结构关联，不能证明选中的项目满足用户语义。验证启动器应读取执行结束时产生的交付清单并检查实际根目录／哈希，不能从原项目目录悄悄重建替代副本。
