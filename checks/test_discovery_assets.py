@@ -15,7 +15,8 @@ class DiscoveryAssetTests(unittest.TestCase):
         rules = (REFERENCE / "candidate-rules.md").read_text(encoding="utf-8")
         self.assertIn("references/scenario-probes.md", skill)
         self.assertIn("最多两类", skill)
-        for step, title in enumerate(("发现选择点", "判断重要性与归属", "核对已有答案", "判断当前时机"), 1):
+        self.assertIn("## 从当前方案寻找关键假设（P0）", rules)
+        for step, title in enumerate(("实质不同", "用户决策归属", "依据是否解决", "当前依赖与可逆性"), 1):
             self.assertIn(f"{step}. **{title}**", rules)
         self.assertIn("不是独立分类器", guidance)
         self.assertIn("每种场景只扫描", guidance)
@@ -26,15 +27,20 @@ class DiscoveryAssetTests(unittest.TestCase):
     def test_examples_have_noncontradictory_concrete_tradeoffs(self):
         lines = (REFERENCE / "examples.jsonl").read_text(encoding="utf-8").splitlines()
         cases = [json.loads(x) for x in lines if x.strip()]
-        self.assertEqual(len(cases), 24)
+        legacy = [c for c in cases if c["case_id"].startswith("dev-")]
+        p0 = [c for c in cases if c["case_id"].startswith("p0-")]
+        self.assertEqual(len(legacy), 24)
+        self.assertEqual(len(p0), 8)
+        self.assertEqual(len(cases), len(legacy) + len(p0))
         self.assertEqual(len(set(c["case_id"] for c in cases)), len(cases))
         groups = {}
         for c in cases:
             self.assertEqual(c["format"], "semantic-choice-example.v1")
             self.assertNotIn("candidates", c)
-            prefix, variant = c["case_id"].rsplit("-", 1)
-            groups.setdefault(prefix, {})[variant] = c
-            self.assertIn(variant, ("missing", "explicit", "future"))
+            if c["case_id"].startswith("dev-"):
+                prefix, variant = c["case_id"].rsplit("-", 1)
+                groups.setdefault(prefix, {})[variant] = c
+                self.assertIn(variant, ("missing", "explicit", "future"))
             for candidate in c["choices_to_consider"]:
                 self.assertTrue(candidate["topic"].strip())
                 self.assertTrue(candidate["consequence"].strip())
