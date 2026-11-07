@@ -41,6 +41,7 @@ description: 在 BuildChoice 开发任务中用可点选的宿主原生问题卡
 ## 重要选择怎样处理
 
 - 用户已明确作出重要选择或修订：用 record_instruction，提交完整真实本轮原话、精确引用、原因、当前句柄与幂等键。不要先 screen 或另发卡；更新使用已有身份／版本和稳定 key。重复确认沿用原版本，细节见[指令与回复记账](references/recording.md)。
+- 开放式开发或准备改变主要产品行为时：在现有推理中先形成**当前最小拟议方案**（交付范围、主要用户路径及关键数据后果），找出其中未获确认的重要假设；必要时与**一个**实质不同的合理方案对照。只筛影响当前实现的高后果选择，不把普通样式、文案或工程细节变成用户问题。目标都无法从项目与需求推断时先问最少的用途信息；按[候选判断](references/candidate-rules.md)处理，不新增强制规划或确认阶段。
 - 仍有重要未决取舍：按[候选判断](references/candidate-rules.md)和[结构化内容](references/decision-content.md)提取，检查 validation_status 后激活 ASK_NOW。优先把返回 presentation.native_request 交宿主原生问题工具；没有原生能力才用固定文字。产品任务可集中最多三个独立问题，普通任务沿用单卡；只暂停受影响步骤。
 - 回复已有卡：Hook 已登记就复用，否则按[原生回复接续](references/conversation.md)处理。过期卡、额外条件和含糊回复不能只取字母当选择。
 - 原生异步回复缺少新 Hook：先看 reply_binding；can_interpret_reply=false 时不调用回复记账，不复用旧句柄、不重建包装、不切换 record_instruction、不重发同卡。保持未登记，必要时仅解释一次；确需落账再请用户发普通消息。
